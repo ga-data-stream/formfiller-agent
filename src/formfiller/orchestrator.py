@@ -83,7 +83,6 @@ def process_email(
 
     if decision.action == "review":
         try:
-            _, _ = hooks.fill_and_submit(url, (), True)  # fill only, never submit
             screenshot, _ = hooks.fill_and_submit(url, decision.fields_to_fill, True)
         except Exception:  # noqa: BLE001
             screenshot = None
@@ -98,6 +97,7 @@ def process_email(
         return _finish(
             status="manual",
             review_reason=decision.reason,
+            fields_blank_flagged=",".join(decision.fields_blank_flagged),
             screenshot_path=str(_job_screenshot_path(config, email.entry_id)),
         )
 

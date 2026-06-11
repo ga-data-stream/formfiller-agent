@@ -79,3 +79,16 @@ def test_required_question_with_no_answer_at_all_routes_to_review():
     decision = evaluate_gate(schema, result, threshold=0.8)
     assert decision.action == "review"
     assert "missing" in decision.reason.lower()
+
+
+def test_review_decision_still_carries_fillable_fields_for_screenshot():
+    schema = _schema(_q("q1"), _q("q2", required=False))
+    result = MappingResult(answers=(
+        _ans("q1", confidence=0.5),  # low confidence -> routes to review
+        MappedAnswer(question_id="q2", profile_field=None, value=None, confidence=0.0, status="no_data"),
+    ))
+    decision = evaluate_gate(schema, result, threshold=0.8)
+    assert decision.action == "review"
+    # q1's proposed value is still carried so the form can be filled for the screenshot
+    assert {f.question_id for f in decision.fields_to_fill} == {"q1"}
+    assert decision.fields_blank_flagged == ("q2",)
