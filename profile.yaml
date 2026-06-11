@@ -1,0 +1,33 @@
+# The single company data profile. Same data for every form.
+# `aliases` help match differently-worded questions and reduce LLM cost.
+fields:
+  - name: company_legal_name
+    value: "Ginesis Finance SAS"
+    aliases: ["company name", "legal name", "raison sociale", "société"]
+  - name: vat_number
+    value: "FR0000000000"
+    aliases: ["VAT", "VAT number", "N° TVA", "numéro de TVA", "tax id"]
+  - name: siret
+    value: "00000000000000"
+    aliases: ["SIRET", "company registration number"]
+  - name: contact_email
+    value: "contact@ginesis-finance.com"
+    aliases: ["email", "e-mail", "contact email", "adresse email"]
+  - name: contact_phone
+    value: "+33000000000"
+    aliases: ["phone", "telephone", "téléphone", "phone number"]
+  - name: address_street
+    value: "1 Rue Exemple"
+    aliases: ["street", "address", "adresse", "rue"]
+  - name: address_city
+    value: "Paris"
+    aliases: ["city", "ville"]
+  - name: address_postal_code
+    value: "75001"
+    aliases: ["postal code", "zip", "code postal"]
+  - name: address_country
+    value: "France"
+    aliases: ["country", "pays"]
+  - name: iban
+    value: "FR0000000000000000000000000"
+    aliases: ["IBAN", "bank account"]
