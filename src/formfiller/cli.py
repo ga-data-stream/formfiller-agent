@@ -30,7 +30,7 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
 
     from formfiller.field_mapper import map_fields
     from formfiller.form_filler import fill_form, submit_form, take_screenshot
-    from formfiller.form_reader import open_page, schema_from_page
+    from formfiller.form_reader import open_page, prepare_form, schema_from_page
 
     client = OpenAI(
         api_key=os.environ["AZURE_OPENAI_API_KEY"],
@@ -40,7 +40,7 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
 
     def read_form(url: str):
         with open_page(headless=True) as page:
-            page.goto(url, wait_until="load")
+            prepare_form(page, url)
             return schema_from_page(page, url)
 
     def do_map(schema):
@@ -48,7 +48,7 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
 
     def fill_and_submit(url, instructions, dry_run):
         with open_page(headless=True) as page:
-            page.goto(url, wait_until="load")
+            prepare_form(page, url)
             fill_form(page, instructions)
             screenshot = take_screenshot(page)
             submitted = submit_form(page, dry_run=dry_run)

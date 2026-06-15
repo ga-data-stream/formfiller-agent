@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from playwright.sync_api import Page, sync_playwright
 
@@ -53,6 +55,78 @@ def _classify(tag: str, input_type: str) -> QuestionType:
     return QuestionType.UNSUPPORTED
 
 
+_MS_HOSTS = ("forms.office.com", "forms.microsoft.com", "forms.cloud.microsoft")
+_START_TEXTS = ("Start now", "Commencer", "Get started", "Démarrer")
+
+_MS_TYPE = {
+    "text": QuestionType.TEXT,
+    "choice_single": QuestionType.CHOICE_SINGLE,
+    "choice_multi": QuestionType.CHOICE_MULTI,
+    "unsupported": QuestionType.UNSUPPORTED,
+}
+
+_MS_EXTRACT_JS = r"""
+() => {
+  const items = Array.from(document.querySelectorAll('[data-automation-id="questionItem"]'));
+  return items.map((item, idx) => {
+    const titleEl = item.querySelector('[data-automation-id="questionTitle"]');
+    let title = '';
+    if (titleEl) {
+      const c = titleEl.cloneNode(true);
+      c.querySelectorAll('[data-automation-id="questionOrdinal"],[data-automation-id="requiredStar"]').forEach(e => e.remove());
+      title = c.textContent.replace(/\s+/g, ' ').trim();
+    }
+    const required = !!item.querySelector('[data-automation-id="requiredStar"]');
+    const choiceItems = Array.from(item.querySelectorAll('[data-automation-id="choiceItem"]'));
+    let type = 'unsupported';
+    let options = [];
+    if (choiceItems.length) {
+      const multi = !!item.querySelector('[role=checkbox], input[type=checkbox]');
+      type = multi ? 'choice_multi' : 'choice_single';
+      options = choiceItems.map(c => (c.getAttribute('aria-label') || c.textContent || '').replace(/\s+/g, ' ').trim());
+    } else if (item.querySelector('textarea') || item.querySelector('input')) {
+      type = 'text';
+    }
+    return { id: 'ms:' + idx, title, type, required, options };
+  });
+}
+"""
+
+
+def _is_ms_forms_host(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(h in host for h in _MS_HOSTS)
+
+
+def _click_visible_start(page) -> bool:
+    """Click the first VISIBLE Microsoft Forms intro/start button. MS Forms
+    renders hidden duplicates, so we must skip non-visible matches."""
+    for txt in _START_TEXTS:
+        loc = page.get_by_role("button", name=re.compile(re.escape(txt), re.I))
+        for i in range(loc.count()):
+            el = loc.nth(i)
+            try:
+                if el.is_visible():
+                    el.scroll_into_view_if_needed(timeout=2000)
+                    el.click(timeout=5000)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    return False
+
+
+def prepare_form(page, url: str) -> None:
+    """Navigate to the form; for Microsoft Forms, click past the intro page and
+    wait for questions to render. Tolerant for non-MS pages (e.g. fixtures)."""
+    page.goto(url, wait_until="load")
+    clicked = _click_visible_start(page)
+    if clicked or _is_ms_forms_host(url):
+        try:
+            page.wait_for_selector('[data-automation-id="questionItem"]', timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 @contextmanager
 def open_page(headless: bool = True):
     """Yield a fresh Playwright Page, cleaning up the browser afterward."""
@@ -66,7 +140,23 @@ def open_page(headless: bool = True):
 
 
 def schema_from_page(page: Page, url: str) -> FormSchema:
-    """Extract a FormSchema from an already-navigated page."""
+    """Extract a FormSchema from an already-navigated page. Uses Microsoft
+    Forms-aware extraction when MS question items are present; otherwise falls
+    back to the generic <label>-based extractor."""
+    if page.locator('[data-automation-id="questionItem"]').count() > 0:
+        recs = page.evaluate(_MS_EXTRACT_JS)
+        questions = tuple(
+            FormQuestion(
+                id=rec["id"],
+                label=rec["title"],
+                type=_MS_TYPE.get(rec["type"], QuestionType.UNSUPPORTED),
+                required=bool(rec["required"]),
+                options=tuple(rec["options"]),
+            )
+            for rec in recs
+        )
+        return FormSchema(url=url, title=page.title(), questions=questions)
+
     data = page.evaluate(_EXTRACT_JS)
     questions = tuple(
         FormQuestion(
@@ -82,7 +172,8 @@ def schema_from_page(page: Page, url: str) -> FormSchema:
 
 
 def read_form(url: str, headless: bool = True) -> FormSchema:
-    """Open `url` in Chromium and return its FormSchema."""
+    """Open `url` in Chromium (clicking past a Microsoft Forms intro page if
+    present) and return its FormSchema."""
     with open_page(headless=headless) as page:
-        page.goto(url, wait_until="load")
+        prepare_form(page, url)
         return schema_from_page(page, url)

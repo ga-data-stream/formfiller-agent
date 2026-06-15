@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Sequence
 
 from playwright.sync_api import Page
@@ -8,15 +9,13 @@ from formfiller.confidence import FillInstruction
 
 
 def fill_form(page: Page, instructions: Sequence[FillInstruction]) -> None:
-    """Type/select each instruction's value into the control with that id.
-
-    Uses Playwright's `fill` for text-like inputs and `select_option` for
-    <select>. Unknown controls are skipped silently (the gate already vetted
-    types; this is defensive).
-    """
+    """Fill each instruction's value. Microsoft Forms questions (ids prefixed
+    'ms:') are addressed by question index; generic forms by element id."""
     for ins in instructions:
-        selector = f"#{ins.question_id}"
-        locator = page.locator(selector)
+        if ins.question_id.startswith("ms:"):
+            _fill_ms_question(page, int(ins.question_id[3:]), ins.value)
+            continue
+        locator = page.locator(f"#{ins.question_id}")
         if locator.count() == 0:
             continue
         tag = locator.evaluate("el => el.tagName.toLowerCase()")
@@ -26,26 +25,51 @@ def fill_form(page: Page, instructions: Sequence[FillInstruction]) -> None:
             locator.fill(ins.value)
 
 
-def submit_form(page: Page, dry_run: bool) -> bool:
-    """Click the form's submit control unless dry_run is True.
+def _fill_ms_question(page: Page, index: int, value: str) -> None:
+    item = page.locator('[data-automation-id="questionItem"]').nth(index)
+    textarea = item.locator("textarea")
+    if textarea.count() > 0:
+        textarea.first.fill(value)
+        return
+    text_input = item.locator('input[data-automation-id="textInput"]')
+    if text_input.count() > 0:
+        text_input.first.fill(value)
+        return
+    # choice question: click the option whose label matches the value
+    choices = item.locator('[data-automation-id="choiceItem"]')
+    for i in range(choices.count()):
+        choice = choices.nth(i)
+        label = (choice.get_attribute("aria-label") or choice.inner_text() or "").strip()
+        if label == value or (value and value in label):
+            choice.click()
+            return
 
-    Returns True if a submit was actually performed. Looks for common submit
-    affordances (button[type=submit], a 'Submit'/'Envoyer' button).
-    """
+
+def submit_form(page: Page, dry_run: bool) -> bool:
+    """Click the VISIBLE submit button unless dry_run. MS Forms renders hidden
+    duplicate buttons, so skip non-visible matches. Returns True if clicked."""
     if dry_run:
         return False
-    candidates = [
-        "button[type=submit]",
-        "input[type=submit]",
-        "button:has-text('Submit')",
-        "button:has-text('Envoyer')",
-        "div[role=button]:has-text('Submit')",
-    ]
-    for sel in candidates:
+    for txt in ("Submit", "Envoyer", "Soumettre"):
+        loc = page.get_by_role("button", name=re.compile(re.escape(txt), re.I))
+        for i in range(loc.count()):
+            el = loc.nth(i)
+            try:
+                if el.is_visible():
+                    el.click(timeout=5000)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    for sel in ("button[type=submit]", "input[type=submit]"):
         loc = page.locator(sel)
-        if loc.count() > 0:
-            loc.first.click()
-            return True
+        for i in range(loc.count()):
+            el = loc.nth(i)
+            try:
+                if el.is_visible():
+                    el.click(timeout=5000)
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
     return False
 
 

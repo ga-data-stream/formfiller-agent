@@ -30,3 +30,19 @@ def test_read_form_detects_types_and_required():
     assert by_label["Preferred contact method"].type == QuestionType.CHOICE_SINGLE
     assert by_label["Preferred contact method"].options == ("Email", "Phone")
     assert by_label["Comments"].required is False
+
+
+def test_read_ms_forms_fixture_extracts_questions():
+    schema = read_form(_file_url("ms_forms_rendered.html"))
+    assert len(schema.questions) == 6
+    by_label = {q.label: q for q in schema.questions}
+    siren = by_label["Quel est votre SIREN (9 caractères) ?"]   # ordinal + star stripped
+    assert siren.type == QuestionType.TEXT
+    assert siren.required is True
+    assert siren.id.startswith("ms:")
+    assert by_label["Qui est notre contact dans vos équipes comptables ?"].type == QuestionType.TEXT  # textarea
+    choice = by_label["Quel choix de format d'adressage avez-vous choisi ?"]
+    assert choice.type == QuestionType.CHOICE_SINGLE
+    assert choice.options == ("EDI", "PDF signé", "Portail")
+    assert choice.required is True
+    assert by_label["Avez-vous plusieurs lignes d'adressage ?"].required is False
