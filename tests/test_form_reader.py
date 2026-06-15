@@ -46,3 +46,8 @@ def test_read_ms_forms_fixture_extracts_questions():
     assert choice.options == ("EDI", "PDF signé", "Portail")
     assert choice.required is True
     assert by_label["Avez-vous plusieurs lignes d'adressage ?"].required is False
+    # labels must be clean of MS Forms screen-reader hint text and ordinals
+    for q in schema.questions:
+        assert "line text" not in q.label.lower()
+        assert "choice." not in q.label.lower()
+        assert not q.label.strip()[:2].rstrip().isdigit()  # no leading "1." ordinal

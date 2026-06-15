@@ -2,29 +2,29 @@
 <html><head><title>Adisséo – E-invoicing (Copie 1)</title></head>
 <body>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">1.</span>Quel est votre SIREN (9 caractères) ?<span data-automation-id="requiredStar">*</span></div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">1.</span>Quel est votre SIREN (9 caractères) ?<span class="sr-only">Single line text.</span><span data-automation-id="requiredStar">*</span></div>
   <input data-automation-id="textInput" type="text" />
 </div>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">2.</span>Quel est le nom de votre entreprise ?<span data-automation-id="requiredStar">*</span></div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">2.</span>Quel est le nom de votre entreprise ?<span class="sr-only">Single line text.</span><span data-automation-id="requiredStar">*</span></div>
   <input data-automation-id="textInput" type="text" />
 </div>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">3.</span>Qui est notre contact dans vos équipes comptables ?<span data-automation-id="requiredStar">*</span></div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">3.</span>Qui est notre contact dans vos équipes comptables ?<span class="sr-only">Multi Line Text.</span><span data-automation-id="requiredStar">*</span></div>
   <textarea data-automation-id="textInput"></textarea>
 </div>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">4.</span>Quel choix de format d'adressage avez-vous choisi ?<span data-automation-id="requiredStar">*</span></div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">4.</span>Quel choix de format d'adressage avez-vous choisi ?<span class="sr-only">Single choice.</span><span data-automation-id="requiredStar">*</span></div>
   <div data-automation-id="choiceItem" role="radio" aria-label="EDI" onclick="this.setAttribute('data-selected','true')">EDI</div>
   <div data-automation-id="choiceItem" role="radio" aria-label="PDF signé" onclick="this.setAttribute('data-selected','true')">PDF signé</div>
   <div data-automation-id="choiceItem" role="radio" aria-label="Portail" onclick="this.setAttribute('data-selected','true')">Portail</div>
 </div>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">5.</span>Avec quelle ligne d'adressage souhaitez-vous recevoir vos factures ?<span data-automation-id="requiredStar">*</span></div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">5.</span>Avec quelle ligne d'adressage souhaitez-vous recevoir vos factures ?<span class="sr-only">Multi Line Text.</span><span data-automation-id="requiredStar">*</span></div>
   <textarea data-automation-id="textInput"></textarea>
 </div>
 <div data-automation-id="questionItem">
-  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">6.</span>Avez-vous plusieurs lignes d'adressage ?</div>
+  <div role="heading" data-automation-id="questionTitle"><span data-automation-id="questionOrdinal">6.</span>Avez-vous plusieurs lignes d'adressage ?<span class="sr-only">Multi Line Text.</span></div>
   <textarea data-automation-id="textInput"></textarea>
 </div>
 <button type="submit">Submit</button>

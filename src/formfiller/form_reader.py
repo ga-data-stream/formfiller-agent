@@ -69,13 +69,16 @@ _MS_EXTRACT_JS = r"""
 () => {
   const items = Array.from(document.querySelectorAll('[data-automation-id="questionItem"]'));
   return items.map((item, idx) => {
-    const titleEl = item.querySelector('[data-automation-id="questionTitle"]');
+    const headingEl = item.querySelector('[role=heading]');
+    const titleEl = headingEl || item.querySelector('[data-automation-id="questionTitle"]');
     let title = '';
     if (titleEl) {
       const c = titleEl.cloneNode(true);
       c.querySelectorAll('[data-automation-id="questionOrdinal"],[data-automation-id="requiredStar"]').forEach(e => e.remove());
-      title = c.textContent.replace(/\s+/g, ' ').trim();
+      title = (c.textContent || '').replace(/\s+/g, ' ').trim();
     }
+    title = title.replace(/^\s*\d+\s*\.?\s*/, '');
+    title = title.replace(/\s*(Single line text|Multi(?:ple)? Line Text|Single choice|Multiple choice|Date|Rating|Ranking|File upload|Net Promoter Score)\.?\s*$/i, '').trim();
     const required = !!item.querySelector('[data-automation-id="requiredStar"]');
     const choiceItems = Array.from(item.querySelectorAll('[data-automation-id="choiceItem"]'));
     let type = 'unsupported';
