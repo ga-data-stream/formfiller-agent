@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from formfiller.agent.llm import OpenAIResponsesAgentLLM
 from formfiller.config import AppConfig, ProfileField, azure_v1_base_url, load_config, load_profile
 from formfiller.models import EmailMessage
 from formfiller.orchestrator import PipelineHooks, process_email
@@ -57,6 +58,72 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
     return PipelineHooks(read_form=read_form, map_fields=do_map, fill_and_submit=fill_and_submit)
 
 
+def choose_pipeline(fill_strategy: str) -> str:
+    """Return the pipeline name for a fill_strategy value."""
+    return "agent" if fill_strategy == "agent" else "deterministic"
+
+
+def build_agent_run(*, client, config, profile):
+    """Build the AgentDeps.run callable: assemble the executor + LLM and run the loop.
+
+    Returns a function run(page, url, config, profile, trace) -> LoopOutcome.
+    """
+    from formfiller.agent.loop import run_loop
+    from formfiller.agent.system_prompt import SYSTEM_PROMPT
+    from formfiller.agent.tools import TOOL_SCHEMAS, ToolExecutor
+    from formfiller.field_mapper import map_fields
+    from formfiller.form_reader import schema_from_page
+
+    deployment = config.agent_model_deployment or config.azure_openai_deployment
+
+    def run(*, page, url, config, profile, trace):
+        page.goto(url, wait_until="load")   # start the agent on the form page
+        executor = ToolExecutor(
+            page=page, url=url,
+            schema_reader=lambda: schema_from_page(page, url),
+            mapper=lambda schema: map_fields(client, deployment, schema, profile),
+            threshold=config.confidence_threshold, dry_run=config.dry_run,
+            confirm=_terminal_confirm,
+        )
+        llm = OpenAIResponsesAgentLLM(client, deployment=deployment, instructions=SYSTEM_PROMPT)
+        return run_loop(llm, executor, instructions=SYSTEM_PROMPT,
+                        user_input=f"Complete the form at {url}.",
+                        tools=TOOL_SCHEMAS, max_steps=config.max_steps,
+                        no_progress_limit=config.no_progress_limit, trace=trace)
+
+    return run
+
+
+def _terminal_confirm(summary: str) -> bool:
+    answer = input(f"\nAgent is ready to SUBMIT (irreversible): {summary}\nProceed? [y/N]: ")
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _build_agent_deps(config, profile):
+    """Production AgentDeps: real Playwright page + Azure client."""
+    import os
+    from openai import OpenAI
+    from formfiller.agent.pipeline import AgentDeps
+    from formfiller.config import azure_v1_base_url
+    from formfiller.form_reader import open_page
+
+    client = OpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
+                    base_url=azure_v1_base_url(os.environ["AZURE_OPENAI_ENDPOINT"]),
+                    default_query={"api-version": config.azure_api_version})
+    run = build_agent_run(client=client, config=config, profile=profile)
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def open_session():
+        # The page is navigated to the form url inside `run`; here we just provide
+        # a fresh page and tear it down afterward.
+        with open_page(headless=True) as page:
+            yield page
+
+    return AgentDeps(open_page=open_session, run=run)
+
+
 def main() -> int:
     from dotenv import load_dotenv
 
@@ -86,8 +153,14 @@ def main() -> int:
     if config.dry_run:
         print("(dry-run mode: forms will be filled but NOT submitted)")
 
-    hooks = _build_hooks(config, profile)
-    result = process_email(chosen, config, profile, hooks)
+    if choose_pipeline(config.fill_strategy) == "agent":
+        from formfiller.agent.pipeline import run_agent_pipeline
+        det_hooks = _build_hooks(config, profile)   # fallback path
+        agent_deps = _build_agent_deps(config, profile)
+        result = run_agent_pipeline(chosen, config, profile, agent_deps, det_hooks)
+    else:
+        hooks = _build_hooks(config, profile)
+        result = process_email(chosen, config, profile, hooks)
 
     print(f"\nResult: {result.status.upper()}")
     if result.review_reason:
