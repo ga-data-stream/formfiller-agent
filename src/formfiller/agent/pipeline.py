@@ -87,10 +87,11 @@ def run_agent_pipeline(email: EmailMessage, config: AppConfig,
         park_for_review(queue_dir=config.review_queue_dir, job_id=email.entry_id,
                         schema=schema, result=mapping, reason=outcome.reason,
                         screenshot_bytes=outcome.screenshot)
+        review_screenshot = (str(Path(config.review_queue_dir) / email.entry_id / "screenshot.png")
+                             if outcome.screenshot else "")
         return _finish(status="manual", review_reason=outcome.reason,
                        fields_filled=outcome.fields_filled,
-                       screenshot_path=str(Path(config.review_queue_dir) / email.entry_id
-                                           / "screenshot.png"))
+                       screenshot_path=review_screenshot)
 
     # submitted | dry_run
     preview_path = ""

@@ -63,6 +63,16 @@ def test_no_link_logs_fail(tmp_path):
     assert "link" in result.review_reason.lower()
 
 
+def test_review_without_screenshot_logs_empty_path(tmp_path):
+    out = LoopOutcome(status="review", reason="login wall", steps=1)  # no screenshot
+    result = run_agent_pipeline(_email(), _config(tmp_path), _PROFILE, _deps(out),
+                                det_hooks=None)
+    assert result.status == "manual"
+    assert result.screenshot_path == ""   # no file was written, so path must be empty
+    # and no screenshot.png exists in the queue dir
+    assert not (tmp_path / "queue" / "E1" / "screenshot.png").exists()
+
+
 def test_abort_falls_back_to_deterministic(tmp_path):
     out = LoopOutcome(status="abort", reason="max steps")
     from formfiller.models import FormQuestion, QuestionType, MappedAnswer

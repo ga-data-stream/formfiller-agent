@@ -104,7 +104,6 @@ def _build_agent_deps(config, profile):
     import os
     from openai import OpenAI
     from formfiller.agent.pipeline import AgentDeps
-    from formfiller.config import azure_v1_base_url
     from formfiller.form_reader import open_page
 
     client = OpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
