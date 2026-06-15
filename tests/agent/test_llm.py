@@ -47,5 +47,14 @@ def test_respond_passes_previous_id_and_tools():
                 tools=[])
     assert client.last_kwargs["previous_response_id"] == "resp-prev"
     assert client.last_kwargs["model"] == "d"
-    # first turn sends instructions; continuation turns should not resend them
-    assert client.last_kwargs.get("instructions") in (None, "sys")
+    # continuation turns (previous_response_id set) must NOT resend instructions
+    assert "instructions" not in client.last_kwargs
+
+
+def test_first_turn_sends_instructions_not_previous_id():
+    from formfiller.agent.llm import OpenAIResponsesAgentLLM
+    client = _Client(_Resp([]))
+    llm = OpenAIResponsesAgentLLM(client, deployment="d", instructions="sys")
+    llm.respond(previous_response_id=None, input="go", tools=[])
+    assert client.last_kwargs["instructions"] == "sys"
+    assert "previous_response_id" not in client.last_kwargs
