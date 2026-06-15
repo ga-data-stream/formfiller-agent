@@ -2,7 +2,9 @@ from pathlib import Path
 import pytest
 from formfiller.confidence import FillInstruction
 from formfiller.form_reader import open_page
-from formfiller.form_filler import fill_form, submit_form, take_screenshot
+from formfiller.form_filler import fill_form, submit_form, take_screenshot, _match_choice
+
+ADDR_OPTIONS = ["SIREN", "SIREN_SIRET", "SIREN_SIRET_Code_Routage", "SIREN_Suffixe"]
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -50,6 +52,45 @@ def test_fill_ms_forms_text_and_choice():
         selected = items.nth(3).locator('[data-automation-id="choiceItem"][data-selected="true"]')
         assert selected.count() == 1
         assert (selected.first.get_attribute("aria-label")) == "PDF signé"
+
+
+def test_match_choice_exact():
+    assert _match_choice(ADDR_OPTIONS, "SIREN_SIRET") == 1
+
+
+def test_match_choice_normalized_separators_and_case():
+    # LLM paraphrase: spaces, a plus sign, different case -> the underscore option.
+    assert _match_choice(ADDR_OPTIONS, "siren + siret") == 1
+
+
+def test_match_choice_no_false_positive_substring():
+    # "SIREN" is a substring of "SIREN_SIRET" but must resolve to the exact option.
+    assert _match_choice(ADDR_OPTIONS, "SIREN") == 0
+
+
+def test_match_choice_returns_none_when_no_match():
+    assert _match_choice(ADDR_OPTIONS, "EDI") is None
+
+
+def test_fill_ms_choice_logs_when_no_option_matches(caplog):
+    from formfiller.form_reader import read_form, prepare_form
+    url = _file_url("ms_forms_rendered.html")
+    schema = read_form(url)
+    by_label = {q.label: q for q in schema.questions}
+    instructions = [
+        FillInstruction(
+            question_id=by_label["Quel choix de format d'adressage avez-vous choisi ?"].id,
+            value="Format inexistant",
+        ),
+    ]
+    with open_page() as page:
+        prepare_form(page, url)
+        with caplog.at_level("WARNING"):
+            fill_form(page, instructions)
+        items = page.locator('[data-automation-id="questionItem"]')
+        selected = items.nth(3).locator('[data-automation-id="choiceItem"][data-selected="true"]')
+        assert selected.count() == 0  # nothing wrongly clicked
+    assert any("Format inexistant" in r.getMessage() for r in caplog.records)
 
 
 def test_submit_form_clicks_visible_submit():

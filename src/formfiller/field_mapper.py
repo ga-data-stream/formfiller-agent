@@ -5,6 +5,7 @@ from typing import Literal, Optional, Sequence
 
 from pydantic import BaseModel
 
+from formfiller.choices import match_choice
 from formfiller.config import ProfileField
 from formfiller.models import FormSchema, MappedAnswer, MappingResult
 
@@ -27,8 +28,11 @@ _SYSTEM = (
     "its value, a confidence in [0,1], and a status. Use status 'matched' when a "
     "profile field clearly answers the question, 'no_data' when the profile has "
     "nothing relevant, and 'ambiguous' when two or more fields could plausibly "
-    "apply or the question is unclear. Respond directly with the structured data; "
-    "do not add commentary."
+    "apply or the question is unclear. When a question lists 'options' (a choice "
+    "question), the value you return MUST be exactly one of those options, copied "
+    "verbatim (same spelling, case, and separators) — never a paraphrase; pick the "
+    "option that best fits the profile data. Respond directly with the structured "
+    "data; do not add commentary."
 )
 
 
@@ -54,6 +58,31 @@ def _build_user_prompt(schema: FormSchema, profile: Sequence[ProfileField]) -> s
         + json.dumps(question_lines, ensure_ascii=False, indent=2)
         + "\n\nReturn one answer object per question_id above."
     )
+
+
+def _resolve_choice_values(schema: FormSchema, result: MappingResult) -> MappingResult:
+    """Snap each choice answer to an exact option, deterministically.
+
+    For questions with a fixed option set, `gpt-5.4-nano` tends to echo the
+    descriptive profile value (e.g. 'SIREN + SIRET') and flag it ambiguous with
+    low confidence rather than commit to an enum value. When that value resolves
+    unambiguously to exactly one option, rewrite it to that option as a confident
+    'matched' — a deterministic exact match is more reliable than the model's
+    self-assessment. Values that resolve to no option are left untouched, so they
+    still route to review.
+    """
+    options_by_id = {q.id: q.options for q in schema.questions if q.options}
+    answers = []
+    for a in result.answers:
+        opts = options_by_id.get(a.question_id)
+        if opts and a.value:
+            idx = match_choice(list(opts), a.value)
+            if idx is not None:
+                a = a.model_copy(
+                    update={"value": opts[idx], "status": "matched", "confidence": 1.0}
+                )
+        answers.append(a)
+    return MappingResult(answers=tuple(answers))
 
 
 def map_fields(
@@ -96,4 +125,4 @@ def map_fields(
         )
         for a in parsed.answers
     )
-    return MappingResult(answers=answers)
+    return _resolve_choice_values(schema, MappingResult(answers=answers))

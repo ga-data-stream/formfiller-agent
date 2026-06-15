@@ -1,7 +1,7 @@
 import pytest
 from formfiller.config import ProfileField
 from formfiller.models import QuestionType, FormQuestion, FormSchema
-from formfiller.field_mapper import map_fields, LLMMapping, LLMMappedAnswer
+from formfiller.field_mapper import map_fields, LLMMapping, LLMMappedAnswer, _SYSTEM
 
 
 # Stub mimics the openai Responses API: client.responses.parse(...) returns an
@@ -55,6 +55,52 @@ def test_map_fields_returns_mapping_result_from_llm_output():
     assert result.by_id("q1").value == "Ginesis Finance SAS"
     assert result.by_id("q1").confidence == 0.95
     assert result.by_id("q2").status == "no_data"
+
+
+def _choice_schema():
+    return FormSchema(
+        url="https://forms.office.com/r/x", title="Vendor",
+        questions=(
+            FormQuestion(
+                id="c1", label="Format d'adressage", type=QuestionType.CHOICE_SINGLE,
+                required=True,
+                options=("SIREN", "SIREN_SIRET", "SIREN_SIRET_Code_Routage", "SIREN_Suffixe"),
+            ),
+        ),
+    )
+
+
+def test_map_fields_snaps_paraphrased_choice_to_exact_option():
+    # The nano model echoes the descriptive profile value and flags it ambiguous;
+    # deterministic resolution must snap it to the exact option and confirm it.
+    parsed = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="c1", profile_field="addressing_format",
+                        value="SIREN + SIRET", confidence=0.45, status="ambiguous"),
+    ])
+    result = map_fields(_StubClient(parsed), "gpt-5.4-nano", _choice_schema(), _profile())
+    ans = result.by_id("c1")
+    assert ans.value == "SIREN_SIRET"
+    assert ans.status == "matched"
+    assert ans.confidence == 1.0
+
+
+def test_map_fields_leaves_unresolvable_choice_untouched():
+    # A value that matches no option must stay as-is so the gate routes it to review.
+    parsed = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="c1", profile_field="addressing_format",
+                        value="quelque chose d'autre", confidence=0.4, status="ambiguous"),
+    ])
+    result = map_fields(_StubClient(parsed), "gpt-5.4-nano", _choice_schema(), _profile())
+    ans = result.by_id("c1")
+    assert ans.status == "ambiguous"
+    assert ans.value == "quelque chose d'autre"
+
+
+def test_system_prompt_requires_verbatim_option_for_choices():
+    low = _SYSTEM.lower()
+    # The LLM must be told to answer choice questions with one of the exact options.
+    assert "option" in low
+    assert "verbatim" in low or "exactly" in low
 
 
 def test_map_fields_passes_deployment_and_text_format():

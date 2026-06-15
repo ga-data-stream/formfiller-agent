@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Sequence
 
 from playwright.sync_api import Page
 
+from formfiller.choices import match_choice as _match_choice
 from formfiller.confidence import FillInstruction
+
+logger = logging.getLogger(__name__)
 
 
 def fill_form(page: Page, instructions: Sequence[FillInstruction]) -> None:
@@ -37,12 +41,18 @@ def _fill_ms_question(page: Page, index: int, value: str) -> None:
         return
     # choice question: click the option whose label matches the value
     choices = item.locator('[data-automation-id="choiceItem"]')
-    for i in range(choices.count()):
-        choice = choices.nth(i)
-        label = (choice.get_attribute("aria-label") or choice.inner_text() or "").strip()
-        if label == value or (value and value in label):
-            choice.click()
-            return
+    labels = [
+        (choices.nth(i).get_attribute("aria-label") or choices.nth(i).inner_text() or "").strip()
+        for i in range(choices.count())
+    ]
+    match = _match_choice(labels, value)
+    if match is None:
+        logger.warning(
+            "No choice option matched value %r (question %d); available options: %s",
+            value, index, labels,
+        )
+        return
+    choices.nth(match).click()
 
 
 def submit_form(page: Page, dry_run: bool) -> bool:
