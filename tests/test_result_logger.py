@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pytest
 from openpyxl import load_workbook
+from formfiller import result_logger
 from formfiller.result_logger import JobResult, append_result, COLUMNS
 
 
@@ -37,3 +40,26 @@ def test_appends_second_row_without_duplicating_header(tmp_path):
     ws = wb.active
     assert ws.max_row == 3  # header + 2 rows
     assert ws[3][5].value == "manual"
+
+
+def test_append_result_returns_path_written_on_success(tmp_path):
+    path = tmp_path / "log.xlsx"
+    used = result_logger.append_result(path, _result())
+    assert used == path
+
+
+def test_append_result_falls_back_to_sidecar_when_primary_locked(tmp_path, monkeypatch):
+    primary = tmp_path / "log.xlsx"
+    real_append_row = result_logger._append_row
+
+    def fake_append_row(p, r):
+        if Path(p) == primary:
+            raise PermissionError("file is open in Excel")
+        return real_append_row(p, r)
+
+    monkeypatch.setattr(result_logger, "_append_row", fake_append_row)
+    used = result_logger.append_result(primary, _result(), retries=1, delay=0)
+    assert used != primary           # wrote a sidecar instead
+    assert used.exists()
+    assert used.suffix == ".xlsx"
+    assert not primary.exists()      # primary was never written (it was "locked")

@@ -57,7 +57,12 @@ def process_email(
 
     def _finish(**overrides) -> JobResult:
         result = JobResult(**{**base, **overrides})
-        append_result(config.excel_log_path, result)
+        try:
+            written = append_result(config.excel_log_path, result)
+            if str(written) != str(config.excel_log_path):
+                print(f"[warn] log file was locked; wrote to sidecar: {written}")
+        except Exception as exc:  # noqa: BLE001 — logging must never crash the run
+            print(f"[warn] could not write log ({exc}); result not logged.")
         return result
 
     # 1. Find the form link.
