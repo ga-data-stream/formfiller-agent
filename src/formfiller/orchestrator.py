@@ -59,7 +59,8 @@ def process_email(
         result = JobResult(**{**base, **overrides})
         try:
             written = append_result(config.excel_log_path, result)
-            if str(written) != str(config.excel_log_path):
+            from pathlib import Path as _Path
+            if _Path(written) != _Path(config.excel_log_path):
                 print(f"[warn] log file was locked; wrote to sidecar: {written}")
         except Exception as exc:  # noqa: BLE001 — logging must never crash the run
             print(f"[warn] could not write log ({exc}); result not logged.")
@@ -108,19 +109,30 @@ def process_email(
 
     # 5. Submit (respecting dry_run).
     try:
-        _screenshot, submitted = hooks.fill_and_submit(
+        screenshot_bytes, submitted = hooks.fill_and_submit(
             url, decision.fields_to_fill, config.dry_run
         )
     except Exception as exc:  # noqa: BLE001
         return _finish(status="fail", review_reason=f"Fill/submit error: {exc}")
 
+    preview_path = ""
+    if config.dry_run and screenshot_bytes:
+        preview = _dry_run_preview_path(config, email.entry_id)
+        preview.parent.mkdir(parents=True, exist_ok=True)
+        preview.write_bytes(screenshot_bytes)
+        preview_path = str(preview)
+
     status = "success" if (submitted or config.dry_run) else "fail"
-    reason = "dry-run: filled but not submitted" if config.dry_run else ""
+    reason = (
+        "dry-run: filled but not submitted (preview saved — verify before enabling submission)"
+        if config.dry_run else ""
+    )
     return _finish(
         status=status,
         fields_filled=len(decision.fields_to_fill),
         fields_blank_flagged=",".join(decision.fields_blank_flagged),
         review_reason=reason,
+        screenshot_path=preview_path,
     )
 
 
@@ -135,3 +147,8 @@ def _form_type(url: str) -> str:
 def _job_screenshot_path(config: AppConfig, job_id: str):
     from pathlib import Path
     return Path(config.review_queue_dir) / job_id / "screenshot.png"
+
+
+def _dry_run_preview_path(config: AppConfig, job_id: str):
+    from pathlib import Path
+    return Path(config.excel_log_path).parent / "dry_run_preview" / f"{job_id}.png"

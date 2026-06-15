@@ -93,6 +93,8 @@ def main() -> int:
     if result.review_reason:
         print(f"Reason: {result.review_reason}")
     print(f"Logged to: {config.excel_log_path}")
+    if result.screenshot_path:
+        print(f"Preview (open to verify the filled form): {result.screenshot_path}")
     return 0
 
 

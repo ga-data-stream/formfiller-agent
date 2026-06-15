@@ -76,3 +76,23 @@ def test_no_form_link_logs_fail(tmp_path):
     result = process_email(_email("no link here"), _config(tmp_path), _PROFILE, hooks)
     assert result.status == "fail"
     assert "link" in result.review_reason.lower()
+
+
+def test_dry_run_saves_filled_form_preview(tmp_path):
+    mapping = MappingResult(answers=(
+        MappedAnswer(question_id="q1", profile_field="company_legal_name",
+                     value="Ginesis Finance SAS", confidence=0.95, status="matched"),
+    ))
+    hooks = PipelineHooks(
+        read_form=lambda url: _SCHEMA,
+        map_fields=lambda schema: mapping,
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False),
+    )
+    cfg = _config(tmp_path, dry_run=True)
+    result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
+    assert result.status == "success"
+    assert result.screenshot_path  # non-empty
+    preview = tmp_path / "dry_run_preview" / "E1.png"
+    assert preview.exists()
+    assert preview.read_bytes() == b"\x89PNG"
+    assert str(preview) == result.screenshot_path
