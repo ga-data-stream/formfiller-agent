@@ -61,28 +61,31 @@ def map_fields(
     deployment: str,
     schema: FormSchema,
     profile: Sequence[ProfileField],
+    max_output_tokens: int = 16000,
 ) -> MappingResult:
-    """Ask the LLM to map each form question to a profile field.
+    """Ask the LLM to map each form question to a profile field via the Azure
+    AI Foundry v1 Responses API with structured outputs.
 
-    `client` is an `openai.AzureOpenAI`-compatible object exposing
-    `beta.chat.completions.parse(...)`. `deployment` is the Azure OpenAI
-    deployment name (passed as `model`). Returns a MappingResult of validated
-    answers. Raises RuntimeError if the model refuses or returns no parse.
+    `client` is an `openai.OpenAI`-compatible object (pointed at
+    `<endpoint>/openai/v1/`) exposing `responses.parse(...)`. `deployment` is the
+    model deployment name. Returns a MappingResult of validated answers. Raises
+    RuntimeError if the model produced no parseable structured output (refusal
+    or an incomplete/over-budget response).
     """
-    completion = client.beta.chat.completions.parse(
+    completion = client.responses.parse(
         model=deployment,
-        messages=[
-            {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content": _build_user_prompt(schema, profile)},
-        ],
-        response_format=LLMMapping,
+        instructions=_SYSTEM,
+        input=_build_user_prompt(schema, profile),
+        text_format=LLMMapping,
+        max_output_tokens=max_output_tokens,
     )
-    message = completion.choices[0].message
-    if getattr(message, "refusal", None):
-        raise RuntimeError(f"LLM refused to map fields: {message.refusal}")
-    parsed: LLMMapping = message.parsed
+    parsed = getattr(completion, "output_parsed", None)
     if parsed is None:
-        raise RuntimeError("LLM returned no structured output.")
+        status = getattr(completion, "status", "unknown")
+        raise RuntimeError(
+            f"LLM returned no structured output (status={status}). "
+            "If status is 'incomplete', raise max_output_tokens."
+        )
     answers = tuple(
         MappedAnswer(
             question_id=a.question_id,

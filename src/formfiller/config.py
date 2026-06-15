@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -32,3 +33,21 @@ def load_config(path: str | Path) -> AppConfig:
 def load_profile(path: str | Path) -> tuple[ProfileField, ...]:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return tuple(ProfileField(**f) for f in data["fields"])
+
+
+def azure_v1_base_url(raw_endpoint: str) -> str:
+    """Normalize a (possibly messy) Azure endpoint into the v1 base URL the
+    OpenAI() client expects: 'https://<host>/openai/v1/'.
+
+    Repairs a doubled-h scheme typo ('hhttps://') and strips any extra path
+    (e.g. a pasted '/openai/v1/responses'), so a stray value in .env can't
+    break the client.
+    """
+    e = (raw_endpoint or "").strip().strip('"').strip("'")
+    if e.startswith("hhttp"):
+        e = e[1:]
+    if not e.startswith(("http://", "https://")):
+        e = "https://" + e
+    u = urlparse(e)
+    scheme = "https" if u.scheme in ("", "hhttps") else u.scheme
+    return f"{scheme}://{u.netloc}/openai/v1/"

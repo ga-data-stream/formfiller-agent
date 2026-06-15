@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from formfiller.config import AppConfig, ProfileField, load_config, load_profile
+from formfiller.config import AppConfig, ProfileField, azure_v1_base_url, load_config, load_profile
 from formfiller.models import EmailMessage
 from formfiller.orchestrator import PipelineHooks, process_email
 
@@ -26,16 +26,16 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
     """Construct the production hooks: Playwright reader/filler + Azure OpenAI mapper."""
     import os
 
-    from openai import AzureOpenAI
+    from openai import OpenAI
 
     from formfiller.field_mapper import map_fields
     from formfiller.form_filler import fill_form, submit_form, take_screenshot
     from formfiller.form_reader import open_page, schema_from_page
 
-    client = AzureOpenAI(
+    client = OpenAI(
         api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_version=config.azure_api_version,
+        base_url=azure_v1_base_url(os.environ["AZURE_OPENAI_ENDPOINT"]),
+        default_query={"api-version": config.azure_api_version},
     )
 
     def read_form(url: str):

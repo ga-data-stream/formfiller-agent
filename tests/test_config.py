@@ -48,3 +48,22 @@ def test_profile_field_is_frozen():
     f = ProfileField(name="x", value="y", aliases=())
     with pytest.raises(Exception):
         f.value = "z"
+
+
+from formfiller.config import azure_v1_base_url
+
+
+def test_azure_v1_base_url_from_bare_host():
+    assert azure_v1_base_url("https://r.services.ai.azure.com") == "https://r.services.ai.azure.com/openai/v1/"
+
+
+def test_azure_v1_base_url_repairs_typo_and_strips_path():
+    # doubled-h typo + a full /openai/v1/responses path both get normalized away
+    assert (
+        azure_v1_base_url("hhttps://r.services.ai.azure.com/openai/v1/responses")
+        == "https://r.services.ai.azure.com/openai/v1/"
+    )
+
+
+def test_azure_v1_base_url_adds_missing_scheme():
+    assert azure_v1_base_url("r.openai.azure.com/") == "https://r.openai.azure.com/openai/v1/"
