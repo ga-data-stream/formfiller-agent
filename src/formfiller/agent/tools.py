@@ -8,7 +8,6 @@ from formfiller.agent.models import PageSnapshot, ToolCall, ToolResult
 from formfiller.agent.perception import read_snapshot
 from formfiller.confidence import FillInstruction, evaluate_gate
 from formfiller.form_filler import fill_form, submit_form, take_screenshot
-from formfiller.form_reader import schema_from_page
 from formfiller.models import FormSchema, MappingResult
 
 logger = logging.getLogger(__name__)
@@ -197,13 +196,48 @@ class ToolExecutor:
 
     def _tool_finish(self, call: ToolCall) -> ToolResult:
         summary = call.arguments.get("summary", "")
+        ready = call.arguments.get("ready_to_submit", False)
         return ToolResult(call_id=call.call_id, name=call.name,
-                          output={"control": "finish", "summary": summary},
+                          output={"control": "finish", "ready_to_submit": ready,
+                                  "summary": summary},
                           terminal="review",
                           reason=summary or "agent finished without submitting")
 
     def _tool_submit(self, call: ToolCall) -> ToolResult:
-        raise NotImplementedError("submit guard added in Task 7")
+        summary = call.arguments.get("summary", "")
+        schema = self._read_schema()
+        mapping = self.mapper(schema)
+        decision = evaluate_gate(schema, mapping, self.threshold)
+
+        # Fill the gate-approved (or proposed) values, then screenshot the form.
+        fill_form(self.page, list(decision.fields_to_fill))
+        shot = take_screenshot(self.page)
+
+        if decision.action == "review":
+            return ToolResult(call_id=call.call_id, name=call.name,
+                              output={"control": "refused", "reason": decision.reason},
+                              terminal="review", reason=decision.reason,
+                              screenshot=shot, schema=schema, mapping=mapping)
+
+        if self.dry_run:
+            return ToolResult(call_id=call.call_id, name=call.name,
+                              output={"control": "dry_run",
+                                      "detail": "would submit; dry_run is on"},
+                              terminal="dry_run", reason="dry-run: filled but not submitted",
+                              screenshot=shot, schema=schema, mapping=mapping)
+
+        if not self.confirm(summary):
+            return ToolResult(call_id=call.call_id, name=call.name,
+                              output={"control": "declined", "reason": "human declined submit"},
+                              terminal="review", reason="human declined confirmation",
+                              screenshot=shot, schema=schema, mapping=mapping)
+
+        submitted = submit_form(self.page, dry_run=False)
+        return ToolResult(call_id=call.call_id, name=call.name,
+                          output={"control": "submitted", "submitted": bool(submitted)},
+                          terminal="submitted" if submitted else "fail",
+                          reason="submitted" if submitted else "submit button not found",
+                          screenshot=shot, schema=schema, mapping=mapping)
 
     # --- helpers --------------------------------------------------------
     def _click_visible_by_text(self, texts) -> bool:
