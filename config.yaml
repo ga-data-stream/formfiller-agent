@@ -9,7 +9,7 @@ azure_api_version: "preview"     # v1 API; passed as the api-version query param
 
 # --- agent loop (opt-in; default deterministic keeps today's behaviour) ---
 fill_strategy: "deterministic"   # "deterministic" | "agent"
-agent_model_deployment: ""       # blank reuses azure_openai_deployment
+agent_model_deployment: ""       # blank → reuse azure_openai_deployment
 max_steps: 20
 no_progress_limit: 5
 traces_dir: "./traces"

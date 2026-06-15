@@ -1,6 +1,6 @@
 import textwrap
 import pytest
-from formfiller.config import load_config, load_profile, ProfileField
+from formfiller.config import load_config, load_profile, ProfileField, AppConfig
 
 
 def _write(tmp_path, name, content):
@@ -70,7 +70,6 @@ def test_azure_v1_base_url_adds_missing_scheme():
 
 
 def test_appconfig_agent_defaults():
-    from formfiller.config import AppConfig
     cfg = AppConfig(excel_log_path="x.xlsx")
     assert cfg.fill_strategy == "deterministic"
     assert cfg.agent_model_deployment == ""   # falls back to azure_openai_deployment when blank
@@ -80,7 +79,6 @@ def test_appconfig_agent_defaults():
 
 
 def test_appconfig_agent_overrides():
-    from formfiller.config import AppConfig
     cfg = AppConfig(
         excel_log_path="x.xlsx", fill_strategy="agent",
         agent_model_deployment="gpt-5.4", max_steps=12,
@@ -90,3 +88,12 @@ def test_appconfig_agent_overrides():
     assert cfg.agent_model_deployment == "gpt-5.4"
     assert cfg.max_steps == 12
     assert cfg.no_progress_limit == 3
+    assert cfg.traces_dir == "./t"
+
+
+def test_appconfig_rejects_unknown_fill_strategy():
+    import pytest
+    from pydantic import ValidationError
+    from formfiller.config import AppConfig
+    with pytest.raises(ValidationError):
+        AppConfig(excel_log_path="x.xlsx", fill_strategy="llm")
