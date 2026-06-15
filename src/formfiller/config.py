@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 import yaml
@@ -16,6 +17,12 @@ class AppConfig(BaseModel):
     inbox_list_count: int = 25
     azure_openai_deployment: str = "gpt-4o"
     azure_api_version: str = "2024-10-21"
+    # --- agent fill strategy (additive; deterministic stays the default) ---
+    fill_strategy: Literal["deterministic", "agent"] = "deterministic"
+    agent_model_deployment: str = ""   # blank → reuse azure_openai_deployment
+    max_steps: int = 20
+    no_progress_limit: int = 5
+    traces_dir: str = "./traces"
 
 
 class ProfileField(BaseModel):

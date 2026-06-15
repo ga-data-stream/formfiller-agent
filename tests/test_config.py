@@ -67,3 +67,26 @@ def test_azure_v1_base_url_repairs_typo_and_strips_path():
 
 def test_azure_v1_base_url_adds_missing_scheme():
     assert azure_v1_base_url("r.openai.azure.com/") == "https://r.openai.azure.com/openai/v1/"
+
+
+def test_appconfig_agent_defaults():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(excel_log_path="x.xlsx")
+    assert cfg.fill_strategy == "deterministic"
+    assert cfg.agent_model_deployment == ""   # falls back to azure_openai_deployment when blank
+    assert cfg.max_steps == 20
+    assert cfg.no_progress_limit == 5
+    assert cfg.traces_dir == "./traces"
+
+
+def test_appconfig_agent_overrides():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(
+        excel_log_path="x.xlsx", fill_strategy="agent",
+        agent_model_deployment="gpt-5.4", max_steps=12,
+        no_progress_limit=3, traces_dir="./t",
+    )
+    assert cfg.fill_strategy == "agent"
+    assert cfg.agent_model_deployment == "gpt-5.4"
+    assert cfg.max_steps == 12
+    assert cfg.no_progress_limit == 3
