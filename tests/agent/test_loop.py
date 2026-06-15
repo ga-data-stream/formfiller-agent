@@ -60,3 +60,26 @@ def test_loop_carries_screenshot_and_schema_from_terminal(tmp_path):
     assert out.status == "submitted"
     assert out.screenshot == b"\x89PNG"
     assert out.schema is schema and out.mapping is mapping
+
+
+def test_loop_counts_only_filled_answer_questions():
+    # turn 1: two answer_question calls (one filled, one not) + one click; turn 2: submit
+    llm = FakeLLM([
+        [("answer_question", {"question_id": "ms:0", "value": "a"}),
+         ("answer_question", {"question_id": "ms:1", "value": "b"}),
+         ("click", {"ref": "e0"})],
+        [("submit", {"summary": "go"})],
+    ])
+    ex = FakeExecutor(
+        {
+            "answer_question": {"output": {"status": "filled", "question_id": "x"}},
+            "click": {"output": {"ok": True}},
+            "submit": {"output": {"control": "dry_run"}, "terminal": "dry_run", "reason": "dry"},
+        },
+        signatures=["s1", "s2"],
+    )
+    out = run_loop(llm, ex, instructions="sys", user_input="start",
+                   tools=[], max_steps=10, no_progress_limit=5, trace=_trace([]))
+    assert out.status == "dry_run"
+    # both answer_question calls returned status "filled"; click must NOT count
+    assert out.fields_filled == 2
