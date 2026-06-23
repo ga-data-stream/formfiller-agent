@@ -50,10 +50,10 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
     def fill_and_submit(url, instructions, dry_run):
         with open_page(headless=True) as page:
             prepare_form(page, url)
-            fill_form(page, instructions)
+            filled = fill_form(page, instructions)
             screenshot = take_screenshot(page)
             submitted = submit_form(page, dry_run=dry_run)
-            return screenshot, submitted
+            return screenshot, submitted, filled
 
     return PipelineHooks(read_form=read_form, map_fields=do_map, fill_and_submit=fill_and_submit)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from contextlib import contextmanager
 from urllib.parse import urlparse
@@ -7,6 +8,14 @@ from urllib.parse import urlparse
 from playwright.sync_api import Page, sync_playwright
 
 from formfiller.models import FormQuestion, FormSchema, QuestionType
+
+logger = logging.getLogger(__name__)
+
+
+class FormRenderError(Exception):
+    """Raised when a known Microsoft Forms page yields no question items, i.e.
+    it never rendered (still on the intro/spinner). Surfacing this prevents a
+    silent empty-schema fallback that would be reported downstream as success."""
 
 # JS evaluated in the page: walk each <label>, find its control, build a record.
 _EXTRACT_JS = r"""
@@ -126,8 +135,11 @@ def prepare_form(page, url: str) -> None:
     if clicked or _is_ms_forms_host(url):
         try:
             page.wait_for_selector('[data-automation-id="questionItem"]', timeout=15000)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:  # noqa: BLE001 — surfaced later by schema_from_page
+            logger.warning(
+                "Microsoft Forms questions did not render within timeout for %s "
+                "(intro page may not have been dismissed).", url,
+            )
 
 
 @contextmanager
@@ -159,6 +171,15 @@ def schema_from_page(page: Page, url: str) -> FormSchema:
             for rec in recs
         )
         return FormSchema(url=url, title=page.title(), questions=questions)
+
+    if _is_ms_forms_host(url):
+        # Known MS Forms host but no question items rendered: do NOT silently fall
+        # back to the generic <label> extractor (which finds nothing on the SPA
+        # shell and yields an empty schema). Fail loudly so the caller logs it.
+        raise FormRenderError(
+            f"Microsoft Forms page rendered no questions: {url}. The form likely "
+            "did not load (intro page, login wall, or slow render)."
+        )
 
     data = page.evaluate(_EXTRACT_JS)
     questions = tuple(

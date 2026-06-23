@@ -18,8 +18,8 @@ class PipelineHooks:
     testable. In production these wrap Playwright and Azure OpenAI (see cli.py)."""
     read_form: Callable[[str], FormSchema]
     map_fields: Callable[[FormSchema], MappingResult]
-    # returns (screenshot_bytes, submitted?)
-    fill_and_submit: Callable[[str, tuple[FillInstruction, ...], bool], tuple[bytes, bool]]
+    # returns (screenshot_bytes, submitted?, fields_actually_filled)
+    fill_and_submit: Callable[[str, tuple[FillInstruction, ...], bool], tuple[bytes, bool, int]]
 
 
 def _now_iso() -> str:
@@ -84,12 +84,20 @@ def process_email(
 
     base["overall_confidence"] = _overall_confidence(mapping)
 
+    # The form yielded no questions (e.g. it never rendered): there is nothing to
+    # fill, so this is a failure — never a silent success.
+    if not schema.questions:
+        return _finish(
+            status="fail",
+            review_reason="No questions detected on the form (it may not have rendered).",
+        )
+
     # 4. Gate.
     decision = evaluate_gate(schema, mapping, config.confidence_threshold)
 
     if decision.action == "review":
         try:
-            screenshot, _ = hooks.fill_and_submit(url, decision.fields_to_fill, True)
+            screenshot, _, _ = hooks.fill_and_submit(url, decision.fields_to_fill, True)
         except Exception:  # noqa: BLE001
             screenshot = None
         park_for_review(
@@ -109,7 +117,7 @@ def process_email(
 
     # 5. Submit (respecting dry_run).
     try:
-        screenshot_bytes, submitted = hooks.fill_and_submit(
+        screenshot_bytes, submitted, filled_count = hooks.fill_and_submit(
             url, decision.fields_to_fill, config.dry_run
         )
     except Exception as exc:  # noqa: BLE001
@@ -122,15 +130,35 @@ def process_email(
         preview.write_bytes(screenshot_bytes)
         preview_path = str(preview)
 
+    intended = len(decision.fields_to_fill)
+    blank = ",".join(decision.fields_blank_flagged)
+
+    # Truthful accounting: success requires fields to have ACTUALLY landed on the
+    # page. Reporting success while nothing was filled is the bug this guards.
+    if filled_count == 0:
+        return _finish(
+            status="fail",
+            fields_filled=0,
+            fields_blank_flagged=blank,
+            review_reason=(
+                f"No fields were filled on the form (0 of {intended} landed); the form "
+                "may not have rendered or its fields did not match the mapped answers."
+            ),
+            screenshot_path=preview_path,
+        )
+
     status = "success" if (submitted or config.dry_run) else "fail"
-    reason = (
-        "dry-run: filled but not submitted (preview saved — verify before enabling submission)"
-        if config.dry_run else ""
-    )
+    if config.dry_run:
+        reason = "dry-run: filled but not submitted (preview saved — verify before enabling submission)"
+    else:
+        reason = ""
+    if filled_count < intended:
+        note = f"partial fill: only {filled_count} of {intended} fields landed."
+        reason = f"{reason} {note}".strip()
     return _finish(
         status=status,
-        fields_filled=len(decision.fields_to_fill),
-        fields_blank_flagged=",".join(decision.fields_blank_flagged),
+        fields_filled=filled_count,
+        fields_blank_flagged=blank,
         review_reason=reason,
         screenshot_path=preview_path,
     )

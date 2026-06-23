@@ -41,7 +41,7 @@ def test_high_confidence_logs_success(tmp_path):
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
         map_fields=lambda schema: mapping,
-        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", (not dry_run) and len(instr) > 0),
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", (not dry_run) and len(instr) > 0, len(instr)),
     )
     result = process_email(_email("link https://forms.office.com/r/x"),
                            _config(tmp_path), _PROFILE, hooks)
@@ -57,7 +57,7 @@ def test_low_confidence_parks_for_review_and_logs_manual(tmp_path):
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
         map_fields=lambda schema: mapping,
-        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False),
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, len(instr)),
     )
     cfg = _config(tmp_path)
     result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
@@ -71,7 +71,7 @@ def test_no_form_link_logs_fail(tmp_path):
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
         map_fields=lambda schema: MappingResult(answers=()),
-        fill_and_submit=lambda url, instr, dry_run: (b"", False),
+        fill_and_submit=lambda url, instr, dry_run: (b"", False, 0),
     )
     result = process_email(_email("no link here"), _config(tmp_path), _PROFILE, hooks)
     assert result.status == "fail"
@@ -86,7 +86,7 @@ def test_dry_run_saves_filled_form_preview(tmp_path):
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
         map_fields=lambda schema: mapping,
-        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False),
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, len(instr)),
     )
     cfg = _config(tmp_path, dry_run=True)
     result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
@@ -96,3 +96,41 @@ def test_dry_run_saves_filled_form_preview(tmp_path):
     assert preview.exists()
     assert preview.read_bytes() == b"\x89PNG"
     assert str(preview) == result.screenshot_path
+
+
+def test_zero_fields_filled_is_not_reported_success(tmp_path):
+    # Regression: a dry-run where the mapping matched a field but NOTHING actually
+    # landed on the page (selectors missed) must NOT be reported as success.
+    mapping = MappingResult(answers=(
+        MappedAnswer(question_id="q1", profile_field="company_legal_name",
+                     value="Ginesis Finance SAS", confidence=0.95, status="matched"),
+    ))
+    hooks = PipelineHooks(
+        read_form=lambda url: _SCHEMA,
+        map_fields=lambda schema: mapping,
+        # gate proposes 1 fill, but 0 actually landed on the page
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, 0),
+    )
+    cfg = _config(tmp_path, dry_run=True)
+    result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
+    assert result.status == "fail"
+    assert result.fields_filled == 0
+    assert "fill" in result.review_reason.lower()
+    # the (empty) preview is still saved so the operator can see nothing landed
+    assert result.screenshot_path
+
+
+def test_form_with_no_questions_is_not_reported_success(tmp_path):
+    # Regression: an empty schema (e.g. an MS Forms page that never rendered)
+    # must become a fail row, not a success with 0 fields.
+    empty_schema = FormSchema(url="https://forms.office.com/r/x", title="", questions=())
+    hooks = PipelineHooks(
+        read_form=lambda url: empty_schema,
+        map_fields=lambda schema: MappingResult(answers=()),
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, 0),
+    )
+    cfg = _config(tmp_path, dry_run=True)
+    result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
+    assert result.status == "fail"
+    assert result.fields_filled == 0
+    assert "question" in result.review_reason.lower()

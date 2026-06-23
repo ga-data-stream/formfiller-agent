@@ -25,6 +25,27 @@ def test_fill_form_sets_input_values():
         assert page.input_value("#i2") == "contact@ginesis-finance.com"
 
 
+def test_fill_form_returns_count_of_fields_actually_filled():
+    instructions = [
+        FillInstruction(question_id="i1", value="Ginesis Finance SAS"),
+        FillInstruction(question_id="i2", value="contact@ginesis-finance.com"),
+    ]
+    with open_page() as page:
+        page.goto(_file_url("ms_form.html"), wait_until="load")
+        assert fill_form(page, instructions) == 2
+
+
+def test_fill_form_does_not_count_selectors_that_miss():
+    instructions = [
+        FillInstruction(question_id="i1", value="Ginesis Finance SAS"),
+        FillInstruction(question_id="does-not-exist", value="ignored"),
+    ]
+    with open_page() as page:
+        page.goto(_file_url("ms_form.html"), wait_until="load")
+        # only #i1 lands; the bogus selector is skipped and must not be counted
+        assert fill_form(page, instructions) == 1
+
+
 def test_take_screenshot_returns_png_bytes():
     with open_page() as page:
         page.goto(_file_url("ms_form.html"), wait_until="load")

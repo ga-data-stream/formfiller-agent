@@ -93,7 +93,13 @@ def run_agent_pipeline(email: EmailMessage, config: AppConfig,
                        fields_filled=outcome.fields_filled,
                        screenshot_path=review_screenshot)
 
-    # submitted | dry_run
+    # submitted | dry_run — but never report success if nothing actually filled.
+    if outcome.fields_filled == 0:
+        return _finish(
+            status="fail",
+            review_reason="Agent finished but filled 0 fields (the form may not have rendered).",
+        )
+
     preview_path = ""
     if outcome.status == "dry_run" and outcome.screenshot:
         preview = Path(config.excel_log_path).parent / "dry_run_preview" / f"{email.entry_id}.png"

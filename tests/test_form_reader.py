@@ -1,13 +1,33 @@
 from pathlib import Path
 import pytest
 from formfiller.models import QuestionType
-from formfiller.form_reader import read_form
+from formfiller.form_reader import FormRenderError, open_page, read_form, schema_from_page
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _file_url(name: str) -> str:
     return (FIXTURES / name).resolve().as_uri()
+
+
+def test_schema_from_page_raises_when_ms_host_has_no_questions():
+    # A Microsoft Forms URL whose page never rendered any questionItem must NOT
+    # silently fall back to an empty schema — that is the bug that let a form
+    # with zero filled fields be reported as success. ms_form.html has generic
+    # <label> inputs but no MS questionItems, so it stands in for an MS Forms
+    # page stuck on its intro/spinner.
+    with open_page() as page:
+        page.goto(_file_url("ms_form.html"), wait_until="load")
+        with pytest.raises(FormRenderError):
+            schema_from_page(page, "https://forms.office.com/e/nKhMUAGCbR")
+
+
+def test_schema_from_page_non_ms_host_still_uses_generic_extractor():
+    # Non-MS pages must keep working via the generic extractor (no false raise).
+    with open_page() as page:
+        page.goto(_file_url("ms_form.html"), wait_until="load")
+        schema = schema_from_page(page, _file_url("ms_form.html"))
+        assert len(schema.questions) == 4
 
 
 @pytest.mark.parametrize("name,title,first_label,n", [

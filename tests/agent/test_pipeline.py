@@ -44,6 +44,17 @@ def test_dry_run_outcome_logs_success_and_saves_preview(tmp_path):
     assert preview.exists() and preview.read_bytes() == b"\x89PNG"
 
 
+def test_dry_run_outcome_with_zero_fields_is_not_success(tmp_path):
+    # Same invariant as the deterministic pipeline: a dry-run/submitted outcome
+    # that filled nothing must not be reported as success.
+    out = LoopOutcome(status="dry_run", reason="dry-run", fields_filled=0, steps=4,
+                      screenshot=b"\x89PNG")
+    result = run_agent_pipeline(_email(), _config(tmp_path), _PROFILE, _deps(out),
+                                det_hooks=None)
+    assert result.status == "fail"
+    assert result.fields_filled == 0
+
+
 def test_review_outcome_parks_and_logs_manual(tmp_path):
     schema = FormSchema(url="https://forms.office.com/r/x", title="t", questions=())
     out = LoopOutcome(status="review", reason="captcha", steps=1,
@@ -83,7 +94,7 @@ def test_abort_falls_back_to_deterministic(tmp_path):
               value="123456789", confidence=0.95, status="matched"),))
     det_hooks = PipelineHooks(read_form=lambda url: schema,
                               map_fields=lambda s: mapping,
-                              fill_and_submit=lambda url, instr, dry: (b"\x89PNG", False))
+                              fill_and_submit=lambda url, instr, dry: (b"\x89PNG", False, len(instr)))
     result = run_agent_pipeline(_email(), _config(tmp_path, dry_run=True), _PROFILE,
                                 _deps(out), det_hooks=det_hooks)
     assert result.status == "success"

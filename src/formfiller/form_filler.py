@@ -12,33 +12,43 @@ from formfiller.confidence import FillInstruction
 logger = logging.getLogger(__name__)
 
 
-def fill_form(page: Page, instructions: Sequence[FillInstruction]) -> None:
-    """Fill each instruction's value. Microsoft Forms questions (ids prefixed
-    'ms:') are addressed by question index; generic forms by element id."""
+def fill_form(page: Page, instructions: Sequence[FillInstruction]) -> int:
+    """Fill each instruction's value and return how many fields were ACTUALLY
+    filled on the page. Microsoft Forms questions (ids prefixed 'ms:') are
+    addressed by question index; generic forms by element id. A selector that
+    matches nothing (or a choice value with no matching option) is skipped and
+    not counted, so the caller can tell when nothing landed."""
+    filled = 0
     for ins in instructions:
         if ins.question_id.startswith("ms:"):
-            _fill_ms_question(page, int(ins.question_id[3:]), ins.value)
+            if _fill_ms_question(page, int(ins.question_id[3:]), ins.value):
+                filled += 1
             continue
         locator = page.locator(f"#{ins.question_id}")
         if locator.count() == 0:
+            logger.warning("No element matched selector #%s; skipped.", ins.question_id)
             continue
         tag = locator.evaluate("el => el.tagName.toLowerCase()")
         if tag == "select":
             locator.select_option(label=ins.value)
         else:
             locator.fill(ins.value)
+        filled += 1
+    return filled
 
 
-def _fill_ms_question(page: Page, index: int, value: str) -> None:
+def _fill_ms_question(page: Page, index: int, value: str) -> bool:
+    """Fill one Microsoft Forms question. Returns True if a control was filled
+    (or a matching choice clicked), False if nothing matched."""
     item = page.locator('[data-automation-id="questionItem"]').nth(index)
     textarea = item.locator("textarea")
     if textarea.count() > 0:
         textarea.first.fill(value)
-        return
+        return True
     text_input = item.locator('input[data-automation-id="textInput"]')
     if text_input.count() > 0:
         text_input.first.fill(value)
-        return
+        return True
     # choice question: click the option whose label matches the value
     choices = item.locator('[data-automation-id="choiceItem"]')
     labels = [
@@ -51,8 +61,9 @@ def _fill_ms_question(page: Page, index: int, value: str) -> None:
             "No choice option matched value %r (question %d); available options: %s",
             value, index, labels,
         )
-        return
+        return False
     choices.nth(match).click()
+    return True
 
 
 def submit_form(page: Page, dry_run: bool) -> bool:
