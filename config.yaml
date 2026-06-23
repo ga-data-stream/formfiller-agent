@@ -1,9 +1,9 @@
 # Runtime settings for the form-filler POC.
 confidence_threshold: 0.8       # submit only if every required field >= this
 dry_run: true                   # POC default: fill but never click submit
-excel_log_path: "C:/Users/PierreKANZANZA/OneDrive - Ginini antipode/Documents/GININI/IA/Poc forms e-fact/form_log.xlsx"
+excel_log_path: "./form_log.xlsx"   # relative to cwd (the project root); keeps all output in this project
 review_queue_dir: "./review_queue"
-inbox_list_count: 41           # how many recent inbox emails to list
+inbox_list_count: 60           # how many recent inbox emails to list
 azure_openai_deployment: "gpt-5.4-nano"   # your Azure OpenAI deployment name (must support structured outputs)
 azure_api_version: "preview"     # v1 API; passed as the api-version query param
 
