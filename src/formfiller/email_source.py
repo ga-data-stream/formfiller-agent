@@ -51,12 +51,17 @@ class OutlookEmailSource:
         items = self._inbox.Items
         items.Sort("[ReceivedTime]", True)  # newest first
         out: list[EmailMessage] = []
-        for item in items:
-            if getattr(item, "Class", None) != 43:  # 43 == olMail
-                continue
-            out.append(self._to_message(item))
-            if len(out) >= count:
-                break
+        # GetFirst/GetNext is the robust idiom for a sorted live collection;
+        # a plain `for item in items` enumerator over it is known to be flaky.
+        item = items.GetFirst()
+        while item is not None and len(out) < count:
+            try:
+                if getattr(item, "Class", None) == 43:  # 43 == olMail
+                    out.append(self._to_message(item))
+            except Exception as exc:  # item Outlook can't resolve right now — skip it
+                subject = getattr(item, "Subject", "<unknown>")
+                print(f"[warn] skipping unreadable inbox item {subject!r}: {exc}")
+            item = items.GetNext()
         return out
 
     def get(self, entry_id: str) -> Optional[EmailMessage]:
