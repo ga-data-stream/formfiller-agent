@@ -5,10 +5,10 @@ fields:
     value: "Ginesis Finance SAS"
     aliases: ["company name", "legal name", "raison sociale", "société"]
   - name: vat_number
-    value: "FR0000000000"
+    value: "FR0120000000"
     aliases: ["VAT", "VAT number", "N° TVA", "numéro de TVA", "tax id"]
   - name: siret
-    value: "00000000000000"
+    value: "98765432155555"
     aliases: ["SIRET", "company registration number"]
   - name: contact_email
     value: "contact@ginesis-finance.com"
@@ -17,7 +17,7 @@ fields:
     value: "+33000000000"
     aliases: ["phone", "telephone", "téléphone", "phone number"]
   - name: address_street
-    value: "1 Rue Exemple"
+    value: "1 place vandome"
     aliases: ["street", "address", "adresse", "rue"]
   - name: address_city
     value: "Paris"
@@ -29,5 +29,24 @@ fields:
     value: "France"
     aliases: ["country", "pays"]
   - name: iban
-    value: "FR0000000000000000000000000"
+    value: "FR7600000000000000000000000"
     aliases: ["IBAN", "bank account"]
+  # --- Fields the Adisséo e-invoicing form needs. REPLACE the placeholder
+  #     values below with your real company answers before enabling submission. ---
+  - name: siren
+    value: "987654321"   # TODO: your real 9-digit SIREN (distinct from the 14-digit SIRET above)
+    aliases: ["SIREN", "numéro SIREN", "SIREN (9 caractères)"]
+  - name: accounting_contact
+    value: "Jane Doe"   # TODO: name of your contact in the accounting team
+    aliases: ["contact comptable", "contact dans vos équipes comptables", "accounting contact", "interlocuteur comptable"]
+  - name: addressing_format
+    # TODO: the e-invoicing addressing format you use. The LLM maps this to the form's
+    # specific options (e.g. SIREN / SIREN_SIRET / SIREN_SIRET_Code_Routage / SIREN_Suffixe).
+    value: "SIREN + SIRET"
+    aliases: ["format d'adressage", "choix de format d'adressage", "addressing format"]
+  - name: addressing_line
+    value: "23 456 789 00012-PARIS"   # TODO: the addressing line to receive invoices
+    aliases: ["ligne d'adressage", "adressage", "addressing line"]
+  - name: einvoicing_readiness
+    value: "en cours"
+    aliases: ["niveau de préparation à la facturation électronique", "préparation facturation électronique", "e-invoicing readiness", "niveau de préparation"]
