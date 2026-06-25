@@ -51,7 +51,12 @@ fields:
     aliases: ["format d'adressage", "choix de format d'adressage", "addressing format"]
   - name: addressing_line
     value: "23 456 789 00012-PARIS"   # TODO: the addressing line to receive invoices
-    aliases: ["ligne d'adressage", "adressage", "addressing line"]
+    # NB: "adresse de facturation électronique" is the e-invoicing routing line
+    # (this field), NOT the postal billing_address. The word "électronique"
+    # distinguishes the two.
+    aliases: ["ligne d'adressage", "adressage", "addressing line",
+              "adresse de facturation électronique", "adresse de facturation electronique",
+              "adresse électronique de facturation"]
   - name: einvoicing_readiness
     value: "en cours"
     aliases: ["niveau de préparation à la facturation électronique", "préparation facturation électronique", "e-invoicing readiness", "niveau de préparation"]
