@@ -72,6 +72,7 @@ def build_agent_run(*, client, config, profile):
     from formfiller.agent.loop import run_loop
     from formfiller.agent.system_prompt import SYSTEM_PROMPT
     from formfiller.agent.tools import TOOL_SCHEMAS, ToolExecutor
+    from formfiller.decision_log import write_decisions_md
     from formfiller.field_mapper import map_and_verify
     from formfiller.form_reader import schema_from_page
 
@@ -79,20 +80,37 @@ def build_agent_run(*, client, config, profile):
 
     def run(*, page, url, config, profile, trace):
         page.goto(url, wait_until="load")   # start the agent on the form page
+        # The agent may map several times (lookup_profile / submit). Stash the
+        # latest MappingOutcome so we can write its reasoning log after the loop;
+        # the executor's mapper contract stays schema -> MappingResult.
+        last: dict = {}
+
+        def mapper(schema):
+            outcome = map_and_verify(client, deployment, schema, profile,
+                                     verify=config.mapping_verify)
+            last["outcome"] = outcome
+            last["title"] = schema.title
+            return outcome.result
+
         executor = ToolExecutor(
             page=page, url=url,
             schema_reader=lambda: schema_from_page(page, url),
-            mapper=lambda schema: map_and_verify(
-                client, deployment, schema, profile,
-                verify=config.mapping_verify).result,
+            mapper=mapper,
             threshold=config.confidence_threshold, dry_run=config.dry_run,
             confirm=_terminal_confirm,
         )
         llm = OpenAIResponsesAgentLLM(client, deployment=deployment, instructions=SYSTEM_PROMPT)
-        return run_loop(llm, executor, instructions=SYSTEM_PROMPT,
-                        user_input=f"Complete the form at {url}.",
-                        tools=TOOL_SCHEMAS, max_steps=config.max_steps,
-                        no_progress_limit=config.no_progress_limit, trace=trace)
+        result = run_loop(llm, executor, instructions=SYSTEM_PROMPT,
+                          user_input=f"Complete the form at {url}.",
+                          tools=TOOL_SCHEMAS, max_steps=config.max_steps,
+                          no_progress_limit=config.no_progress_limit, trace=trace)
+        # Write the per-form reasoning log (best-effort) for the agent path too,
+        # keyed by the run id (= email entry id), matching the deterministic path.
+        outcome = last.get("outcome")
+        if outcome is not None:
+            write_decisions_md(config.decisions_dir, trace.run_id,
+                               last.get("title", ""), url, outcome.decisions)
+        return result
 
     return run
 
