@@ -45,6 +45,7 @@ class MappedAnswer(BaseModel):
     value: Optional[str]
     confidence: float
     status: MappingStatus
+    rationale: str = ""
 
 
 class MappingResult(BaseModel):
@@ -56,6 +57,29 @@ class MappingResult(BaseModel):
             if a.question_id == question_id:
                 return a
         return None
+
+
+class DecisionRecord(BaseModel):
+    model_config = _FROZEN
+    question_id: str
+    label: str
+    type: str
+    required: bool
+    profile_field: Optional[str]
+    value: Optional[str]
+    propose_status: str
+    propose_confidence: float
+    propose_rationale: str
+    final_status: str
+    final_confidence: float
+    verify_rationale: str
+    final_action: Literal["fill", "review", "blank"]
+
+
+class MappingOutcome(BaseModel):
+    model_config = _FROZEN
+    result: MappingResult
+    decisions: tuple[DecisionRecord, ...] = ()
 
 
 class EmailMessage(BaseModel):

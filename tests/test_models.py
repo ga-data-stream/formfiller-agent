@@ -51,3 +51,29 @@ def test_email_message_is_frozen():
     )
     with pytest.raises(Exception):
         msg.entry_id = "changed"
+
+
+def test_mapped_answer_has_rationale_default():
+    from formfiller.models import MappedAnswer
+    a = MappedAnswer(question_id="q", profile_field="f", value="v",
+                     confidence=0.9, status="matched")
+    assert a.rationale == ""
+    assert a.model_copy(update={"rationale": "because"}).rationale == "because"
+
+
+def test_mapping_outcome_carries_result_and_decisions():
+    from formfiller.models import (
+        MappedAnswer, MappingResult, DecisionRecord, MappingOutcome,
+    )
+    rec = DecisionRecord(
+        question_id="q", label="L", type="text", required=True,
+        profile_field="f", value="v",
+        propose_status="matched", propose_confidence=0.9, propose_rationale="p",
+        final_status="matched", final_confidence=0.95, verify_rationale="v",
+        final_action="fill",
+    )
+    res = MappingResult(answers=(MappedAnswer(question_id="q", profile_field="f",
+                        value="v", confidence=0.95, status="matched"),))
+    out = MappingOutcome(result=res, decisions=(rec,))
+    assert out.result.by_id("q").value == "v"
+    assert out.decisions[0].final_action == "fill"
