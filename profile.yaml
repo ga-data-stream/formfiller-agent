@@ -17,8 +17,8 @@ fields:
     value: "+33000000000"
     aliases: ["phone", "telephone", "téléphone", "phone number"]
   - name: address_street
-    value: "1 place vandome"
-    aliases: ["street", "address", "adresse", "rue"]
+    value: "1 place Vendôme"
+    aliases: ["street", "rue", "numéro et rue"]
   - name: address_city
     value: "Paris"
     aliases: ["city", "ville"]
@@ -28,6 +28,11 @@ fields:
   - name: address_country
     value: "France"
     aliases: ["country", "pays"]
+  - name: billing_address
+    # Full one-line address for forms asking for the whole address in one field.
+    value: "1 place Vendôme, 75001 Paris, France"
+    aliases: ["adresse de facturation", "billing address", "adresse complète",
+              "adresse postale", "full address", "adresse"]
   - name: iban
     value: "FR7600000000000000000000000"
     aliases: ["IBAN", "bank account"]
@@ -38,7 +43,7 @@ fields:
     aliases: ["SIREN", "numéro SIREN", "SIREN (9 caractères)"]
   - name: accounting_contact
     value: "Jane Doe"   # TODO: name of your contact in the accounting team
-    aliases: ["contact comptable", "contact dans vos équipes comptables", "accounting contact", "interlocuteur comptable"]
+    aliases: ["contact comptable", "contact dans vos équipes comptables", "accounting contact", "interlocuteur comptable", "en charge de la comptabilité"]
   - name: addressing_format
     # TODO: the e-invoicing addressing format you use. The LLM maps this to the form's
     # specific options (e.g. SIREN / SIREN_SIRET / SIREN_SIRET_Code_Routage / SIREN_Suffixe).
