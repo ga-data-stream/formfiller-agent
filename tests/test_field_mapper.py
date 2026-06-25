@@ -2,6 +2,8 @@ import pytest
 from formfiller.config import ProfileField
 from formfiller.models import QuestionType, FormQuestion, FormSchema
 from formfiller.field_mapper import map_fields, LLMMapping, LLMMappedAnswer, _SYSTEM
+from formfiller.field_mapper import map_and_verify
+from formfiller.models import MappingOutcome
 
 
 # Stub mimics the openai Responses API: client.responses.parse(...) returns an
@@ -112,3 +114,145 @@ def test_map_fields_passes_deployment_and_text_format():
     assert call["text_format"] is LLMMapping
     # system prompt goes via `instructions`, the form payload via `input`
     assert "instructions" in call and "input" in call
+
+
+def test_map_fields_propagates_rationale():
+    parsed = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.95,
+                        status="matched", rationale="company name -> legal name"),
+    ])
+    result = map_fields(_StubClient(parsed), "gpt-5.4", _schema(), _profile())
+    assert result.by_id("q1").rationale == "company name -> legal name"
+
+
+def test_user_prompt_includes_field_description():
+    from formfiller.field_mapper import _build_user_prompt
+    prof = (ProfileField(name="addressing_line", value="X",
+                         description="e-invoicing routing line, NOT postal"),)
+    prompt = _build_user_prompt(_schema(), prof)
+    assert "e-invoicing routing line" in prompt
+
+
+class _SeqResponses:
+    def __init__(self, parsed_seq):
+        self._seq = list(parsed_seq)
+        self.calls = []
+
+    def parse(self, **kwargs):
+        self.calls.append(kwargs)
+        return _StubResponse(self._seq.pop(0))
+
+
+class _SeqClient:
+    def __init__(self, parsed_seq):
+        self.responses = _SeqResponses(parsed_seq)
+
+
+def test_verify_can_rescue_timid_match():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.4,
+                        status="ambiguous", rationale="unsure"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Ginesis Finance SAS", confidence=0.97,
+                          status="matched", rationale="clearly the legal name"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    assert isinstance(out, MappingOutcome)
+    ans = out.result.by_id("q1")
+    assert ans.status == "matched"
+    assert ans.value == "Ginesis Finance SAS"
+    rec = next(d for d in out.decisions if d.question_id == "q1")
+    assert rec.propose_status == "ambiguous"
+    assert rec.final_status == "matched"
+    assert rec.final_action == "fill"
+    assert "legal name" in rec.verify_rationale
+
+
+def test_verify_rejects_value_not_in_profile_keeps_pass1():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Some Hallucinated Name", confidence=0.9,
+                          status="matched", rationale="changed"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    assert out.result.by_id("q1").value == "Ginesis Finance SAS"  # pass-1 value kept
+
+
+def test_verify_failure_falls_back_to_pass1():
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+
+    class _BoomResponses(_SeqResponses):
+        def parse(self, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                return _StubResponse(propose)
+            raise RuntimeError("verify boom")
+
+    client = _SeqClient([propose])
+    client.responses = _BoomResponses([propose])
+    out = map_and_verify(client, "gpt-5.4", _schema(), _profile())
+    assert out.result.by_id("q1").value == "Ginesis Finance SAS"
+    rec = next(d for d in out.decisions if d.question_id == "q1")
+    assert "unavailable" in rec.verify_rationale.lower()
+
+
+def test_verify_false_skips_second_call():
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    client = _SeqClient([propose])
+    out = map_and_verify(client, "gpt-5.4", _schema(), _profile(), verify=False)
+    assert len(client.responses.calls) == 1
+    assert out.result.by_id("q1").status == "matched"
+
+
+def test_verify_matched_with_null_value_does_not_fill():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field=None, value=None,
+                        confidence=0.0, status="no_data", rationale="none"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value=None, confidence=0.9, status="matched",
+                          rationale="malformed"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    ans = out.result.by_id("q1")
+    assert ans.value is None
+    assert ans.status != "matched"  # downgraded so the gate won't fill a null
+
+
+def test_verify_rejection_keeps_pass1_value_and_honors_verifier_status():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Hallucinated Name", confidence=0.5,
+                          status="ambiguous", rationale="unsure"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    ans = out.result.by_id("q1")
+    assert ans.value == "Ginesis Finance SAS"  # pass-1 profile value kept (not the hallucination)
+    assert ans.status == "ambiguous"           # verifier status honored -> routes to review

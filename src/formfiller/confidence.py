@@ -27,12 +27,14 @@ def evaluate_gate(
     """Decide whether to auto-submit the filled form or hold it for review.
 
     Iterates every question, collecting the values it would fill (every matched
-    answer with a value — including low-confidence ones, so the review screenshot
-    shows the proposed entries) and the optional fields left blank. Any rule
-    violation (unsupported type, required field unanswered/unmatched, ambiguous
-    mapping, or a matched value below `threshold`) routes the whole form to
-    review while STILL carrying those fills/blanks so the orchestrator can fill
-    the form for the screenshot.
+    answer with a value) and the optional fields left blank. Any rule violation
+    (unsupported type, required field unanswered/unmatched, or ambiguous mapping)
+    routes the whole form to review while STILL carrying those fills/blanks so
+    the orchestrator can fill the form for the screenshot.
+
+    The `threshold` parameter is retained for signature stability but is no
+    longer used as a gate. Confidence is now advisory only; the verifier's
+    discrete status (ambiguous / no_data) is the safety net.
     """
     fields_to_fill: list[FillInstruction] = []
     blank_flagged: list[str] = []
@@ -63,9 +65,8 @@ def evaluate_gate(
                 blank_flagged.append(q.id)
             continue
 
-        # matched with a value — collect the fill (shown even if low-confidence)
-        if answer.confidence < threshold:
-            review_reasons.append(f"Low confidence ({answer.confidence:.2f}) mapping '{q.label}'.")
+        # matched with a value — collect the fill. Confidence is no longer a gate;
+        # the verifier's discrete status (ambiguous / no_data) is the safety net.
         fields_to_fill.append(FillInstruction(question_id=q.id, value=answer.value))
 
     if review_reasons:
@@ -78,7 +79,7 @@ def evaluate_gate(
 
     return GateDecision(
         action="submit",
-        reason="All required fields filled with sufficient confidence.",
+        reason="All required fields matched.",
         fields_to_fill=tuple(fields_to_fill),
         fields_blank_flagged=tuple(blank_flagged),
     )

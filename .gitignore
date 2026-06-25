@@ -8,3 +8,7 @@ venv/
 review_queue/
 *.xlsx
 !tests/**/*.xlsx
+decisions/
+traces/
+dry_run_preview/
+.superpowers/

@@ -3,60 +3,68 @@
 fields:
   - name: company_legal_name
     value: "Ginesis Finance SAS"
+    description: "Registered legal/company name (raison sociale) of the company."
     aliases: ["company name", "legal name", "raison sociale", "société"]
   - name: vat_number
     value: "FR0120000000"
+    description: "Intra-EU VAT number (numéro de TVA intracommunautaire)."
     aliases: ["VAT", "VAT number", "N° TVA", "numéro de TVA", "tax id"]
   - name: siret
     value: "98765432155555"
+    description: "14-digit SIRET establishment identifier (SIREN + 5-digit NIC). NOT the 9-digit SIREN."
     aliases: ["SIRET", "company registration number"]
   - name: contact_email
     value: "contact@ginesis-finance.com"
+    description: "General contact email address for the company."
     aliases: ["email", "e-mail", "contact email", "adresse email"]
   - name: contact_phone
     value: "+33000000000"
+    description: "Company contact phone number."
     aliases: ["phone", "telephone", "téléphone", "phone number"]
   - name: address_street
     value: "1 place Vendôme"
+    description: "Street line only (number + street) of the postal address."
     aliases: ["street", "rue", "numéro et rue"]
   - name: address_city
     value: "Paris"
+    description: "City of the postal address."
     aliases: ["city", "ville"]
   - name: address_postal_code
     value: "75001"
+    description: "Postal/ZIP code of the postal address."
     aliases: ["postal code", "zip", "code postal"]
   - name: address_country
     value: "France"
+    description: "Country of the postal address."
     aliases: ["country", "pays"]
   - name: billing_address
-    # Full one-line address for forms asking for the whole address in one field.
+    description: "Full one-line POSTAL billing address (street, postal code, city, country) for questions asking for the whole address in one field. NOT the electronic e-invoicing routing line."
     value: "1 place Vendôme, 75001 Paris, France"
     aliases: ["adresse de facturation", "billing address", "adresse complète",
               "adresse postale", "full address", "adresse"]
   - name: iban
     value: "FR7600000000000000000000000"
+    description: "Company bank account IBAN."
     aliases: ["IBAN", "bank account"]
-  # --- Fields the Adisséo e-invoicing form needs. REPLACE the placeholder
-  #     values below with your real company answers before enabling submission. ---
   - name: siren
-    value: "987654321"   # TODO: your real 9-digit SIREN (distinct from the 14-digit SIRET above)
+    value: "987654321"
+    description: "9-digit SIREN company identifier. NOT the 14-digit SIRET."
     aliases: ["SIREN", "numéro SIREN", "SIREN (9 caractères)"]
   - name: accounting_contact
-    value: "Jane Doe"   # TODO: name of your contact in the accounting team
+    value: "Jane Doe"
+    description: "Name of the person in our accounting team who is the contact for this supplier/relationship."
     aliases: ["contact comptable", "contact dans vos équipes comptables", "accounting contact", "interlocuteur comptable", "en charge de la comptabilité"]
   - name: addressing_format
-    # TODO: the e-invoicing addressing format you use. The LLM maps this to the form's
-    # specific options (e.g. SIREN / SIREN_SIRET / SIREN_SIRET_Code_Routage / SIREN_Suffixe).
+    description: "The e-invoicing addressing FORMAT/scheme used to route invoices (e.g. SIREN, SIREN+SIRET, with routing code). The model maps this to the form's specific options."
     value: "SIREN + SIRET"
     aliases: ["format d'adressage", "choix de format d'adressage", "addressing format"]
   - name: addressing_line
-    value: "23 456 789 00012-PARIS"   # TODO: the addressing line to receive invoices
-    # NB: "adresse de facturation électronique" is the e-invoicing routing line
-    # (this field), NOT the postal billing_address. The word "électronique"
-    # distinguishes the two.
+    description: "The e-invoicing ROUTING/addressing line used to deliver electronic invoices — the 'adresse de facturation électronique'. This is NOT the postal billing address; the word 'électronique' distinguishes it."
+    value: "23 456 789 00012-PARIS"
     aliases: ["ligne d'adressage", "adressage", "addressing line",
               "adresse de facturation électronique", "adresse de facturation electronique",
               "adresse électronique de facturation"]
   - name: einvoicing_readiness
     value: "en cours"
+    description: "Current readiness level for electronic invoicing rollout (e.g. not started / in progress / ready). Currently 'en cours' (in progress)."
     aliases: ["niveau de préparation à la facturation électronique", "préparation facturation électronique", "e-invoicing readiness", "niveau de préparation"]

@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from formfiller.agent.models import LoopOutcome
 from formfiller.agent.pipeline import run_agent_pipeline, AgentDeps
 from formfiller.config import AppConfig, ProfileField
-from formfiller.models import EmailMessage, FormSchema, MappingResult
+from formfiller.models import EmailMessage, FormSchema, MappingResult, MappingOutcome
 from formfiller.orchestrator import PipelineHooks
 
 
@@ -16,6 +16,7 @@ def _config(tmp_path, dry_run=True):
     return AppConfig(excel_log_path=str(tmp_path / "log.xlsx"),
                      review_queue_dir=str(tmp_path / "queue"),
                      traces_dir=str(tmp_path / "traces"),
+                     decisions_dir=str(tmp_path / "decisions"),
                      dry_run=dry_run, fill_strategy="agent",
                      azure_openai_deployment="gpt-5.4-nano")
 
@@ -93,7 +94,7 @@ def test_abort_falls_back_to_deterministic(tmp_path):
     mapping = MappingResult(answers=(MappedAnswer(question_id="q1", profile_field="siren",
               value="123456789", confidence=0.95, status="matched"),))
     det_hooks = PipelineHooks(read_form=lambda url: schema,
-                              map_fields=lambda s: mapping,
+                              map_fields=lambda s: MappingOutcome(result=mapping, decisions=()),
                               fill_and_submit=lambda url, instr, dry: (b"\x89PNG", False, len(instr)))
     result = run_agent_pipeline(_email(), _config(tmp_path, dry_run=True), _PROFILE,
                                 _deps(out), det_hooks=det_hooks)

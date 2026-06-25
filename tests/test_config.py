@@ -97,3 +97,17 @@ def test_appconfig_rejects_unknown_fill_strategy():
     from formfiller.config import AppConfig
     with pytest.raises(ValidationError):
         AppConfig(excel_log_path="x.xlsx", fill_strategy="llm")
+
+
+def test_profile_field_has_optional_description():
+    from formfiller.config import ProfileField
+    f = ProfileField(name="x", value="v", description="what x is")
+    assert f.description == "what x is"
+    assert ProfileField(name="y", value="v").description == ""
+
+
+def test_appconfig_has_decisions_dir_and_verify_defaults():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(excel_log_path="x.xlsx")
+    assert cfg.decisions_dir == "./decisions"
+    assert cfg.mapping_verify is True

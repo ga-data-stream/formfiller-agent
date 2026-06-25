@@ -2,8 +2,13 @@ import pytest
 from formfiller.config import AppConfig, ProfileField
 from formfiller.models import (
     QuestionType, FormQuestion, FormSchema, EmailMessage, MappedAnswer, MappingResult,
+    MappingOutcome,
 )
 from formfiller.orchestrator import process_email, PipelineHooks
+
+
+def _outcome(mapping):
+    return MappingOutcome(result=mapping, decisions=())
 
 
 def _email(body):
@@ -19,6 +24,7 @@ def _config(tmp_path, dry_run=False):
         dry_run=dry_run,
         excel_log_path=str(tmp_path / "log.xlsx"),
         review_queue_dir=str(tmp_path / "queue"),
+        decisions_dir=str(tmp_path / "decisions"),
         inbox_list_count=10,
         azure_openai_deployment="gpt-4o",
         azure_api_version="2024-10-21",
@@ -40,7 +46,7 @@ def test_high_confidence_logs_success(tmp_path):
     ))
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
-        map_fields=lambda schema: mapping,
+        map_fields=lambda schema: _outcome(mapping),
         fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", (not dry_run) and len(instr) > 0, len(instr)),
     )
     result = process_email(_email("link https://forms.office.com/r/x"),
@@ -49,28 +55,27 @@ def test_high_confidence_logs_success(tmp_path):
     assert result.fields_filled == 1
 
 
-def test_low_confidence_parks_for_review_and_logs_manual(tmp_path):
+def test_ambiguous_parks_for_review_and_logs_manual(tmp_path):
     mapping = MappingResult(answers=(
         MappedAnswer(question_id="q1", profile_field="company_legal_name",
-                     value="Ginesis Finance SAS", confidence=0.4, status="matched"),
+                     value="Ginesis Finance SAS", confidence=0.9, status="ambiguous"),
     ))
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
-        map_fields=lambda schema: mapping,
+        map_fields=lambda schema: _outcome(mapping),
         fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, len(instr)),
     )
     cfg = _config(tmp_path)
     result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
     assert result.status == "manual"
-    assert "confidence" in result.review_reason.lower()
-    # a review-queue folder was created (keyed on the email entry_id)
+    assert "ambiguous" in result.review_reason.lower()
     assert (tmp_path / "queue" / "E1").exists()
 
 
 def test_no_form_link_logs_fail(tmp_path):
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
-        map_fields=lambda schema: MappingResult(answers=()),
+        map_fields=lambda schema: _outcome(MappingResult(answers=())),
         fill_and_submit=lambda url, instr, dry_run: (b"", False, 0),
     )
     result = process_email(_email("no link here"), _config(tmp_path), _PROFILE, hooks)
@@ -85,7 +90,7 @@ def test_dry_run_saves_filled_form_preview(tmp_path):
     ))
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
-        map_fields=lambda schema: mapping,
+        map_fields=lambda schema: _outcome(mapping),
         fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, len(instr)),
     )
     cfg = _config(tmp_path, dry_run=True)
@@ -107,7 +112,7 @@ def test_zero_fields_filled_is_not_reported_success(tmp_path):
     ))
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
-        map_fields=lambda schema: mapping,
+        map_fields=lambda schema: _outcome(mapping),
         # gate proposes 1 fill, but 0 actually landed on the page
         fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, 0),
     )
@@ -126,7 +131,7 @@ def test_form_with_no_questions_is_not_reported_success(tmp_path):
     empty_schema = FormSchema(url="https://forms.office.com/r/x", title="", questions=())
     hooks = PipelineHooks(
         read_form=lambda url: empty_schema,
-        map_fields=lambda schema: MappingResult(answers=()),
+        map_fields=lambda schema: _outcome(MappingResult(answers=())),
         fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, 0),
     )
     cfg = _config(tmp_path, dry_run=True)
@@ -134,3 +139,27 @@ def test_form_with_no_questions_is_not_reported_success(tmp_path):
     assert result.status == "fail"
     assert result.fields_filled == 0
     assert "question" in result.review_reason.lower()
+
+
+def test_writes_decisions_log(tmp_path):
+    from formfiller.models import DecisionRecord
+    mapping = MappingResult(answers=(
+        MappedAnswer(question_id="q1", profile_field="company_legal_name",
+                     value="Ginesis Finance SAS", confidence=0.95, status="matched"),
+    ))
+    decisions = (DecisionRecord(
+        question_id="q1", label="Company name", type="text", required=True,
+        profile_field="company_legal_name", value="Ginesis Finance SAS",
+        propose_status="matched", propose_confidence=0.95, propose_rationale="p",
+        final_status="matched", final_confidence=0.95, verify_rationale="v",
+        final_action="fill"),)
+    hooks = PipelineHooks(
+        read_form=lambda url: _SCHEMA,
+        map_fields=lambda schema: MappingOutcome(result=mapping, decisions=decisions),
+        fill_and_submit=lambda url, instr, dry_run: (b"\x89PNG", False, len(instr)),
+    )
+    cfg = _config(tmp_path, dry_run=True)
+    process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
+    log = tmp_path / "decisions" / "E1.md"
+    assert log.exists()
+    assert "Company name" in log.read_text(encoding="utf-8")
