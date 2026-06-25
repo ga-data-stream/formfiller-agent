@@ -23,12 +23,15 @@ class AppConfig(BaseModel):
     max_steps: int = 20
     no_progress_limit: int = 5
     traces_dir: str = "./traces"
+    decisions_dir: str = "./decisions"
+    mapping_verify: bool = True
 
 
 class ProfileField(BaseModel):
     model_config = ConfigDict(frozen=True)
     name: str
     value: str
+    description: str = ""
     aliases: tuple[str, ...] = ()
 
 
