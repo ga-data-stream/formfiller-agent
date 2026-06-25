@@ -16,6 +16,7 @@ def _config(tmp_path, dry_run=True):
     return AppConfig(excel_log_path=str(tmp_path / "log.xlsx"),
                      review_queue_dir=str(tmp_path / "queue"),
                      traces_dir=str(tmp_path / "traces"),
+                     decisions_dir=str(tmp_path / "decisions"),
                      dry_run=dry_run, fill_strategy="agent",
                      azure_openai_deployment="gpt-5.4-nano")
 

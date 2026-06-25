@@ -15,7 +15,7 @@ def _ans(qid, value="v", confidence=0.95, status="matched", field="f"):
     return MappedAnswer(question_id=qid, profile_field=field, value=value, confidence=confidence, status=status)
 
 
-def test_submits_when_all_required_matched_above_threshold():
+def test_submits_when_all_required_matched():
     schema = _schema(_q("q1"), _q("q2"))
     result = MappingResult(answers=(_ans("q1"), _ans("q2")))
     decision = evaluate_gate(schema, result, threshold=0.8)

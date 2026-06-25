@@ -221,3 +221,38 @@ def test_verify_false_skips_second_call():
     out = map_and_verify(client, "gpt-5.4", _schema(), _profile(), verify=False)
     assert len(client.responses.calls) == 1
     assert out.result.by_id("q1").status == "matched"
+
+
+def test_verify_matched_with_null_value_does_not_fill():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field=None, value=None,
+                        confidence=0.0, status="no_data", rationale="none"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value=None, confidence=0.9, status="matched",
+                          rationale="malformed"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    ans = out.result.by_id("q1")
+    assert ans.value is None
+    assert ans.status != "matched"  # downgraded so the gate won't fill a null
+
+
+def test_verify_rejection_keeps_pass1_value_and_honors_verifier_status():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Hallucinated Name", confidence=0.5,
+                          status="ambiguous", rationale="unsure"),
+    ])
+    out = map_and_verify(_SeqClient([propose, verify]), "gpt-5.4", _schema(), _profile())
+    ans = out.result.by_id("q1")
+    assert ans.value == "Ginesis Finance SAS"  # pass-1 profile value kept (not the hallucination)
+    assert ans.status == "ambiguous"           # verifier status honored -> routes to review

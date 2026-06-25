@@ -79,7 +79,7 @@ def evaluate_gate(
 
     return GateDecision(
         action="submit",
-        reason="All required fields filled with sufficient confidence.",
+        reason="All required fields matched.",
         fields_to_fill=tuple(fields_to_fill),
         fields_blank_flagged=tuple(blank_flagged),
     )

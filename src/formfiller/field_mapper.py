@@ -211,8 +211,12 @@ def map_and_verify(client, deployment: str, schema: FormSchema,
         ok = (v.value in allowed) or (q.id in opt_sets and v.value in opt_sets[q.id])
         value = v.value if ok else (p.value if p else None)
         field = v.profile_field if ok else (p.profile_field if p else None)
+        status = v.status
+        # Hardening: a 'matched' verdict with no usable value must not fill.
+        if value is None and status == "matched":
+            status = "no_data"
         merged.append(MappedAnswer(question_id=q.id, profile_field=field, value=value,
-                      confidence=v.confidence, status=v.status, rationale=v.rationale))
+                      confidence=v.confidence, status=status, rationale=v.rationale))
 
     final_result = _resolve_choice_values(schema, MappingResult(answers=tuple(merged)))
     final_by_id = {a.question_id: a for a in final_result.answers}
