@@ -112,3 +112,21 @@ def test_map_fields_passes_deployment_and_text_format():
     assert call["text_format"] is LLMMapping
     # system prompt goes via `instructions`, the form payload via `input`
     assert "instructions" in call and "input" in call
+
+
+def test_map_fields_propagates_rationale():
+    parsed = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.95,
+                        status="matched", rationale="company name -> legal name"),
+    ])
+    result = map_fields(_StubClient(parsed), "gpt-5.4", _schema(), _profile())
+    assert result.by_id("q1").rationale == "company name -> legal name"
+
+
+def test_user_prompt_includes_field_description():
+    from formfiller.field_mapper import _build_user_prompt
+    prof = (ProfileField(name="addressing_line", value="X",
+                         description="e-invoicing routing line, NOT postal"),)
+    prompt = _build_user_prompt(_schema(), prof)
+    assert "e-invoicing routing line" in prompt

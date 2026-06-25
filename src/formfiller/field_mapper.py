@@ -16,6 +16,7 @@ class LLMMappedAnswer(BaseModel):
     value: Optional[str]
     confidence: float
     status: Literal["matched", "no_data", "ambiguous"]
+    rationale: str = ""
 
 
 class LLMMapping(BaseModel):
@@ -23,22 +24,25 @@ class LLMMapping(BaseModel):
 
 
 _SYSTEM = (
-    "You map web-form questions to a fixed company data profile. "
-    "For each question, choose the single best-matching profile field and return "
-    "its value, a confidence in [0,1], and a status. Use status 'matched' when a "
-    "profile field clearly answers the question, 'no_data' when the profile has "
-    "nothing relevant, and 'ambiguous' when two or more fields could plausibly "
-    "apply or the question is unclear. When a question lists 'options' (a choice "
-    "question), the value you return MUST be exactly one of those options, copied "
-    "verbatim (same spelling, case, and separators) — never a paraphrase; pick the "
-    "option that best fits the profile data. Respond directly with the structured "
-    "data; do not add commentary."
+    "You map web-form questions to a fixed company data profile. Reason from each "
+    "profile field's 'description' (what it is and when it applies), not just its "
+    "name. For each question, choose the single best-matching profile field and "
+    "return its value, a confidence in [0,1], a status, and a one-sentence "
+    "'rationale' explaining your choice. Use status 'matched' when a profile field "
+    "answers the question — commit to it even if the wording differs from the field "
+    "name. Use 'no_data' when the profile genuinely has nothing relevant. Use "
+    "'ambiguous' ONLY when two or more fields could each plausibly answer, or the "
+    "question itself is unclear. When a question lists 'option' (a choice "
+    "question), the value MUST be exactly one of those options, copied verbatim "
+    "(same spelling, case, separators) — never a paraphrase. Never invent data: "
+    "values must come from the profile. Respond with the structured data only."
 )
 
 
 def _build_user_prompt(schema: FormSchema, profile: Sequence[ProfileField]) -> str:
     profile_lines = [
-        {"field": f.name, "value": f.value, "aliases": list(f.aliases)}
+        {"field": f.name, "value": f.value,
+         "description": f.description, "aliases": list(f.aliases)}
         for f in profile
     ]
     question_lines = [
@@ -122,6 +126,7 @@ def map_fields(
             value=a.value,
             confidence=a.confidence,
             status=a.status,
+            rationale=a.rationale,
         )
         for a in parsed.answers
     )
