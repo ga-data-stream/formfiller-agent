@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from formfiller.agent.models import LoopOutcome
 from formfiller.agent.pipeline import run_agent_pipeline, AgentDeps
 from formfiller.config import AppConfig, ProfileField
-from formfiller.models import EmailMessage, FormSchema, MappingResult
+from formfiller.models import EmailMessage, FormSchema, MappingResult, MappingOutcome
 from formfiller.orchestrator import PipelineHooks
 
 
@@ -93,7 +93,7 @@ def test_abort_falls_back_to_deterministic(tmp_path):
     mapping = MappingResult(answers=(MappedAnswer(question_id="q1", profile_field="siren",
               value="123456789", confidence=0.95, status="matched"),))
     det_hooks = PipelineHooks(read_form=lambda url: schema,
-                              map_fields=lambda s: mapping,
+                              map_fields=lambda s: MappingOutcome(result=mapping, decisions=()),
                               fill_and_submit=lambda url, instr, dry: (b"\x89PNG", False, len(instr)))
     result = run_agent_pipeline(_email(), _config(tmp_path, dry_run=True), _PROFILE,
                                 _deps(out), det_hooks=det_hooks)

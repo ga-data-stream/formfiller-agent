@@ -7,7 +7,8 @@ from typing import Callable
 from formfiller.config import AppConfig, ProfileField
 from formfiller.confidence import FillInstruction, evaluate_gate
 from formfiller.link_extractor import NoFormLinkError, extract_form_url
-from formfiller.models import EmailMessage, FormSchema, MappingResult
+from formfiller.models import EmailMessage, FormSchema, MappingResult, MappingOutcome
+from formfiller.decision_log import write_decisions_md
 from formfiller.result_logger import JobResult, append_result
 from formfiller.review_queue import park_for_review
 
@@ -17,7 +18,7 @@ class PipelineHooks:
     """Injected steps that touch external systems, so the orchestrator stays
     testable. In production these wrap Playwright and Azure OpenAI (see cli.py)."""
     read_form: Callable[[str], FormSchema]
-    map_fields: Callable[[FormSchema], MappingResult]
+    map_fields: Callable[[FormSchema], MappingOutcome]
     # returns (screenshot_bytes, submitted?, fields_actually_filled)
     fill_and_submit: Callable[[str, tuple[FillInstruction, ...], bool], tuple[bytes, bool, int]]
 
@@ -78,10 +79,13 @@ def process_email(
     # 2. Read + 3. Map (wrapped so any browser/LLM error becomes a fail row).
     try:
         schema = hooks.read_form(url)
-        mapping = hooks.map_fields(schema)
+        outcome = hooks.map_fields(schema)
     except Exception as exc:  # noqa: BLE001 — isolate one bad form
         return _finish(status="fail", review_reason=f"Read/map error: {exc}")
 
+    mapping = outcome.result
+    write_decisions_md(config.decisions_dir, email.entry_id, schema.title, url,
+                       outcome.decisions)
     base["overall_confidence"] = _overall_confidence(mapping)
 
     # The form yielded no questions (e.g. it never rendered): there is nothing to

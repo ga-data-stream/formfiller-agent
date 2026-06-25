@@ -29,7 +29,7 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
 
     from openai import OpenAI
 
-    from formfiller.field_mapper import map_fields
+    from formfiller.field_mapper import map_and_verify
     from formfiller.form_filler import fill_form, submit_form, take_screenshot
     from formfiller.form_reader import open_page, prepare_form, schema_from_page
 
@@ -45,7 +45,8 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
             return schema_from_page(page, url)
 
     def do_map(schema):
-        return map_fields(client, config.azure_openai_deployment, schema, profile)
+        return map_and_verify(client, config.azure_openai_deployment, schema,
+                              profile, verify=config.mapping_verify)
 
     def fill_and_submit(url, instructions, dry_run):
         with open_page(headless=True) as page:
@@ -71,7 +72,7 @@ def build_agent_run(*, client, config, profile):
     from formfiller.agent.loop import run_loop
     from formfiller.agent.system_prompt import SYSTEM_PROMPT
     from formfiller.agent.tools import TOOL_SCHEMAS, ToolExecutor
-    from formfiller.field_mapper import map_fields
+    from formfiller.field_mapper import map_and_verify
     from formfiller.form_reader import schema_from_page
 
     deployment = config.agent_model_deployment or config.azure_openai_deployment
@@ -81,7 +82,9 @@ def build_agent_run(*, client, config, profile):
         executor = ToolExecutor(
             page=page, url=url,
             schema_reader=lambda: schema_from_page(page, url),
-            mapper=lambda schema: map_fields(client, deployment, schema, profile),
+            mapper=lambda schema: map_and_verify(
+                client, deployment, schema, profile,
+                verify=config.mapping_verify).result,
             threshold=config.confidence_threshold, dry_run=config.dry_run,
             confirm=_terminal_confirm,
         )
