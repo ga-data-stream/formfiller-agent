@@ -49,10 +49,10 @@ def test_high_confidence_logs_success(tmp_path):
     assert result.fields_filled == 1
 
 
-def test_low_confidence_parks_for_review_and_logs_manual(tmp_path):
+def test_ambiguous_parks_for_review_and_logs_manual(tmp_path):
     mapping = MappingResult(answers=(
         MappedAnswer(question_id="q1", profile_field="company_legal_name",
-                     value="Ginesis Finance SAS", confidence=0.4, status="matched"),
+                     value="Ginesis Finance SAS", confidence=0.9, status="ambiguous"),
     ))
     hooks = PipelineHooks(
         read_form=lambda url: _SCHEMA,
@@ -62,8 +62,7 @@ def test_low_confidence_parks_for_review_and_logs_manual(tmp_path):
     cfg = _config(tmp_path)
     result = process_email(_email("link https://forms.office.com/r/x"), cfg, _PROFILE, hooks)
     assert result.status == "manual"
-    assert "confidence" in result.review_reason.lower()
-    # a review-queue folder was created (keyed on the email entry_id)
+    assert "ambiguous" in result.review_reason.lower()
     assert (tmp_path / "queue" / "E1").exists()
 
 
