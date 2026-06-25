@@ -127,19 +127,47 @@ def _click_visible_start(page) -> bool:
     return False
 
 
+# Resolves true once the SPA has rendered EITHER the questions or a visible
+# intro/start button — so we don't try to click before the button exists.
+_READY_JS = r"""
+(names) => {
+  if (document.querySelector('[data-automation-id=questionItem]')) return true;
+  const btns = Array.from(document.querySelectorAll('button'));
+  return btns.some(b => b.offsetParent !== null && names.some(n =>
+    ((b.innerText || '') + ' ' + (b.getAttribute('aria-label') || ''))
+      .toLowerCase().includes(n.toLowerCase())));
+}
+"""
+
+
 def prepare_form(page, url: str) -> None:
     """Navigate to the form; for Microsoft Forms, click past the intro page and
     wait for questions to render. Tolerant for non-MS pages (e.g. fixtures)."""
     page.goto(url, wait_until="load")
-    clicked = _click_visible_start(page)
-    if clicked or _is_ms_forms_host(url):
-        try:
-            page.wait_for_selector('[data-automation-id="questionItem"]', timeout=15000)
-        except Exception:  # noqa: BLE001 — surfaced later by schema_from_page
-            logger.warning(
-                "Microsoft Forms questions did not render within timeout for %s "
-                "(intro page may not have been dismissed).", url,
-            )
+    # `url` may be a forms.office.com short link that redirects; check both.
+    if not (_is_ms_forms_host(url) or _is_ms_forms_host(page.url)):
+        _click_visible_start(page)  # best-effort for non-MS fixtures
+        return
+
+    # Microsoft Forms is a single-page app: at `load` neither the intro button
+    # nor the questions exist yet — they render a few seconds later. Clicking
+    # "Start now" immediately is a no-op that leaves us stuck on the cover, so
+    # first wait for the button (or the questions) to actually render.
+    try:
+        page.wait_for_function(_READY_JS, arg=list(_START_TEXTS), timeout=20000)
+    except Exception:  # noqa: BLE001 — surfaced later by schema_from_page
+        logger.warning(
+            "Microsoft Forms page %s rendered neither an intro button nor "
+            "questions within timeout.", url,
+        )
+    _click_visible_start(page)  # no-op if the form opened straight to questions
+    try:
+        page.wait_for_selector('[data-automation-id="questionItem"]', timeout=15000)
+    except Exception:  # noqa: BLE001 — surfaced later by schema_from_page
+        logger.warning(
+            "Microsoft Forms questions did not render within timeout for %s "
+            "(intro page may not have been dismissed).", url,
+        )
 
 
 @contextmanager
