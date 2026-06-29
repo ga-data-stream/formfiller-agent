@@ -120,7 +120,7 @@ _VERIFY_SYSTEM = (
 
 def _verify(client, deployment: str, schema: FormSchema,
             profile: Sequence[ProfileField], proposed: MappingResult,
-            max_output_tokens: int) -> LLMVerification:
+            max_output_tokens: int, reasoning_effort: str = "medium") -> LLMVerification:
     proposed_payload = [
         {"question_id": a.question_id, "profile_field": a.profile_field,
          "value": a.value, "status": a.status, "rationale": a.rationale}
@@ -135,6 +135,7 @@ def _verify(client, deployment: str, schema: FormSchema,
     completion = client.responses.parse(
         model=deployment, instructions=_VERIFY_SYSTEM, input=user,
         text_format=LLMVerification, max_output_tokens=max_output_tokens,
+        reasoning={"effort": reasoning_effort},
     )
     parsed = getattr(completion, "output_parsed", None)
     if parsed is None:
@@ -180,16 +181,19 @@ def _outcome_from_single(schema: FormSchema, proposed: MappingResult,
 
 def map_and_verify(client, deployment: str, schema: FormSchema,
                    profile: Sequence[ProfileField], verify: bool = True,
-                   max_output_tokens: int = 16000) -> "MappingOutcome":
+                   max_output_tokens: int = 16000,
+                   reasoning_effort: str = "medium") -> "MappingOutcome":
     """Two-pass mapping. Pass 1 proposes (with rationale); pass 2 verifies and
     sets the final status. Returns a MappingOutcome (result for the gate +
     decisions for the reasoning log). Falls back to pass-1 if verify fails."""
     from formfiller.models import DecisionRecord, MappedAnswer, MappingOutcome
-    proposed = map_fields(client, deployment, schema, profile, max_output_tokens)
+    proposed = map_fields(client, deployment, schema, profile, max_output_tokens,
+                          reasoning_effort=reasoning_effort)
     if not verify:
         return _outcome_from_single(schema, proposed)
     try:
-        verification = _verify(client, deployment, schema, profile, proposed, max_output_tokens)
+        verification = _verify(client, deployment, schema, profile, proposed,
+                               max_output_tokens, reasoning_effort=reasoning_effort)
     except Exception as exc:  # noqa: BLE001 — verify is best-effort
         logger.warning("verify pass failed (%s); using pass-1 mapping.", exc)
         return _outcome_from_single(schema, proposed, verify_note="(verification unavailable)")
@@ -246,6 +250,7 @@ def map_fields(
     schema: FormSchema,
     profile: Sequence[ProfileField],
     max_output_tokens: int = 16000,
+    reasoning_effort: str = "medium",
 ) -> MappingResult:
     """Ask the LLM to map each form question to a profile field via the Azure
     AI Foundry v1 Responses API with structured outputs.
@@ -262,6 +267,7 @@ def map_fields(
         input=_build_user_prompt(schema, profile),
         text_format=LLMMapping,
         max_output_tokens=max_output_tokens,
+        reasoning={"effort": reasoning_effort},
     )
     parsed = getattr(completion, "output_parsed", None)
     if parsed is None:

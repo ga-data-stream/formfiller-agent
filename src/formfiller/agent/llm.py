@@ -30,11 +30,13 @@ class OpenAIResponsesAgentLLM:
     """
 
     def __init__(self, client, *, deployment: str, instructions: str,
-                 max_output_tokens: int = 16000) -> None:
+                 max_output_tokens: int = 16000,
+                 reasoning_effort: str = "medium") -> None:
         self.client = client
         self.deployment = deployment
         self.instructions = instructions
         self.max_output_tokens = max_output_tokens
+        self.reasoning_effort = reasoning_effort
 
     def respond(self, *, previous_response_id, input, tools) -> LLMTurn:
         kwargs: dict[str, Any] = {
@@ -43,6 +45,7 @@ class OpenAIResponsesAgentLLM:
             "tools": tools,
             "tool_choice": "auto",
             "max_output_tokens": self.max_output_tokens,
+            "reasoning": {"effort": self.reasoning_effort},
         }
         if previous_response_id is None:
             kwargs["instructions"] = self.instructions

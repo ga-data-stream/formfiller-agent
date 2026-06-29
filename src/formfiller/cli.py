@@ -46,7 +46,8 @@ def _build_hooks(config: AppConfig, profile: tuple[ProfileField, ...]) -> Pipeli
 
     def do_map(schema):
         return map_and_verify(client, config.azure_openai_deployment, schema,
-                              profile, verify=config.mapping_verify)
+                              profile, verify=config.mapping_verify,
+                              reasoning_effort=config.reasoning_effort)
 
     def fill_and_submit(url, instructions, dry_run):
         with open_page(headless=True) as page:
@@ -87,7 +88,8 @@ def build_agent_run(*, client, config, profile):
 
         def mapper(schema):
             outcome = map_and_verify(client, deployment, schema, profile,
-                                     verify=config.mapping_verify)
+                                     verify=config.mapping_verify,
+                                     reasoning_effort=config.reasoning_effort)
             last["outcome"] = outcome
             last["title"] = schema.title
             return outcome.result
@@ -99,7 +101,8 @@ def build_agent_run(*, client, config, profile):
             threshold=config.confidence_threshold, dry_run=config.dry_run,
             confirm=_terminal_confirm,
         )
-        llm = OpenAIResponsesAgentLLM(client, deployment=deployment, instructions=SYSTEM_PROMPT)
+        llm = OpenAIResponsesAgentLLM(client, deployment=deployment, instructions=SYSTEM_PROMPT,
+                                      reasoning_effort=config.reasoning_effort)
         result = run_loop(llm, executor, instructions=SYSTEM_PROMPT,
                           user_input=f"Complete the form at {url}.",
                           tools=TOOL_SCHEMAS, max_steps=config.max_steps,

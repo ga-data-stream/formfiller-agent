@@ -58,3 +58,11 @@ def test_first_turn_sends_instructions_not_previous_id():
     llm.respond(previous_response_id=None, input="go", tools=[])
     assert client.last_kwargs["instructions"] == "sys"
     assert "previous_response_id" not in client.last_kwargs
+
+
+def test_respond_passes_reasoning_effort():
+    client = _Client(_Resp([]))
+    llm = OpenAIResponsesAgentLLM(client, deployment="d", instructions="sys",
+                                  reasoning_effort="xhigh")
+    llm.respond(previous_response_id=None, input="go", tools=[])
+    assert client.last_kwargs["reasoning"] == {"effort": "xhigh"}

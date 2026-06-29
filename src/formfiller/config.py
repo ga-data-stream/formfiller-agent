@@ -25,6 +25,10 @@ class AppConfig(BaseModel):
     traces_dir: str = "./traces"
     decisions_dir: str = "./decisions"
     mapping_verify: bool = True
+    # Reasoning depth sent to the gpt-5 family on every Responses API call.
+    # gpt-5.4 defaults to 'none' (no reasoning) unless set explicitly; 'xhigh'
+    # is the deepest level (supported on gpt-5.1-codex-max and later).
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] = "medium"
 
 
 class ProfileField(BaseModel):

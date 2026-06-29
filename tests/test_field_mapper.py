@@ -116,6 +116,32 @@ def test_map_fields_passes_deployment_and_text_format():
     assert "instructions" in call and "input" in call
 
 
+def test_map_fields_passes_reasoning_effort():
+    parsed = LLMMapping(answers=[])
+    client = _StubClient(parsed)
+    map_fields(client, "gpt-5.4", _schema(), _profile(), reasoning_effort="xhigh")
+    call = client.responses.calls[0]
+    assert call["reasoning"] == {"effort": "xhigh"}
+
+
+def test_map_and_verify_passes_reasoning_effort_to_both_passes():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Ginesis Finance SAS", confidence=0.95,
+                          status="matched", rationale="ok"),
+    ])
+    client = _SeqClient([propose, verify])
+    map_and_verify(client, "gpt-5.4", _schema(), _profile(), reasoning_effort="xhigh")
+    assert len(client.responses.calls) == 2
+    assert all(c["reasoning"] == {"effort": "xhigh"} for c in client.responses.calls)
+
+
 def test_map_fields_propagates_rationale():
     parsed = LLMMapping(answers=[
         LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",

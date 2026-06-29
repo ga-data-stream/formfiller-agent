@@ -111,3 +111,17 @@ def test_appconfig_has_decisions_dir_and_verify_defaults():
     cfg = AppConfig(excel_log_path="x.xlsx")
     assert cfg.decisions_dir == "./decisions"
     assert cfg.mapping_verify is True
+
+
+def test_appconfig_reasoning_effort_default_and_override():
+    from formfiller.config import AppConfig
+    assert AppConfig(excel_log_path="x.xlsx").reasoning_effort == "medium"
+    assert AppConfig(excel_log_path="x.xlsx", reasoning_effort="xhigh").reasoning_effort == "xhigh"
+
+
+def test_appconfig_rejects_unknown_reasoning_effort():
+    import pytest
+    from pydantic import ValidationError
+    from formfiller.config import AppConfig
+    with pytest.raises(ValidationError):
+        AppConfig(excel_log_path="x.xlsx", reasoning_effort="turbo")

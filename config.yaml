@@ -6,6 +6,7 @@ review_queue_dir: "./review_queue"
 inbox_list_count: 60           # how many recent inbox emails to list
 azure_openai_deployment: "gpt-5.4-nano"   # your Azure OpenAI deployment name (must support structured outputs)
 azure_api_version: "preview"     # v1 API; passed as the api-version query param
+reasoning_effort: "xhigh"        # gpt-5 reasoning depth: none|minimal|low|medium|high|xhigh (gpt-5.4 defaults to none if unset)
 
 # --- agent loop (opt-in; default deterministic keeps today's behaviour) ---
 fill_strategy: "deterministic"   # "deterministic" | "agent"

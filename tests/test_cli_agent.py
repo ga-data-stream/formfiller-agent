@@ -50,7 +50,7 @@ def test_build_agent_run_writes_decisions_log(monkeypatch, tmp_path):
     import formfiller.cli as cli
 
     def _fake_map_and_verify(client, deployment, schema, profile, verify=True,
-                             max_output_tokens=16000):
+                             max_output_tokens=16000, reasoning_effort="medium"):
         from formfiller.models import (
             MappedAnswer, MappingResult, MappingOutcome, DecisionRecord,
         )
