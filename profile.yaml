@@ -1,70 +1,83 @@
 # The single company data profile. Same data for every form.
 # `aliases` help match differently-worded questions and reduce LLM cost.
+# Descriptions are in French: the forms are in French, so French descriptions
+# improve semantic matching. Each description says CE QUE c'est, QUAND l'utiliser,
+# et avec quoi NE PAS le confondre — c'est ce qui réduit les statuts "ambiguous".
 fields:
   - name: company_legal_name
     value: "Ginesis Finance SAS"
-    description: "Registered legal/company name (raison sociale) of the company."
-    aliases: ["company name", "legal name", "raison sociale", "société"]
+    description: "Raison sociale (nom légal enregistré, tel qu'il figure sur le Kbis) de l'entreprise. Répond à toute question demandant « nom de l'entreprise », « raison sociale » ou « dénomination sociale ». Ce n'est ni un nom commercial/enseigne, ni un identifiant numérique (SIREN/SIRET/TVA)."
+    aliases: ["nom de l'entreprise", "nom de votre entreprise", "raison sociale",
+              "dénomination sociale", "raison sociale telle que mentionnée sur le Kbis",
+              "société", "company name", "legal name"]
   - name: vat_number
     value: "FR0120000000"
-    description: "Intra-EU VAT number (numéro de TVA intracommunautaire)."
-    aliases: ["VAT", "VAT number", "N° TVA", "numéro de TVA", "tax id"]
+    description: "Numéro de TVA intracommunautaire de l'entreprise (identifiant fiscal commençant par « FR » suivi de chiffres, utilisé pour les échanges intracommunautaires dans l'Union européenne). À ne pas confondre avec le SIREN (9 chiffres) ni le SIRET (14 chiffres)."
+    aliases: ["numéro de TVA", "numéro de TVA intracommunautaire", "TVA intracommunautaire",
+              "N° TVA", "identifiant fiscal", "VAT", "VAT number", "tax id"]
   - name: siret
     value: "98765432155555"
-    description: "14-digit SIRET establishment identifier (SIREN + 5-digit NIC). NOT the 9-digit SIREN."
-    aliases: ["SIRET", "company registration number"]
-  - name: contact_email
-    value: "contact@ginesis-finance.com"
-    description: "General contact email address for the company."
-    aliases: ["email", "e-mail", "contact email", "adresse email"]
-  - name: contact_phone
-    value: "+33000000000"
-    description: "Company contact phone number."
-    aliases: ["phone", "telephone", "téléphone", "phone number"]
-  - name: address_street
-    value: "1 place Vendôme"
-    description: "Street line only (number + street) of the postal address."
-    aliases: ["street", "rue", "numéro et rue"]
-  - name: address_city
-    value: "Paris"
-    description: "City of the postal address."
-    aliases: ["city", "ville"]
-  - name: address_postal_code
-    value: "75001"
-    description: "Postal/ZIP code of the postal address."
-    aliases: ["postal code", "zip", "code postal"]
-  - name: address_country
-    value: "France"
-    description: "Country of the postal address."
-    aliases: ["country", "pays"]
-  - name: billing_address
-    description: "Full one-line POSTAL billing address (street, postal code, city, country) for questions asking for the whole address in one field. NOT the electronic e-invoicing routing line."
-    value: "1 place Vendôme, 75001 Paris, France"
-    aliases: ["adresse de facturation", "billing address", "adresse complète",
-              "adresse postale", "full address", "adresse"]
-  - name: iban
-    value: "FR7600000000000000000000000"
-    description: "Company bank account IBAN."
-    aliases: ["IBAN", "bank account"]
+    description: "Numéro SIRET à 14 chiffres identifiant un établissement de l'entreprise (SIREN à 9 chiffres + NIC à 5 chiffres). À utiliser quand la question mentionne « SIRET » ou « 14 chiffres/caractères ». Ce n'est PAS le SIREN (9 chiffres) ni le numéro de TVA."
+    aliases: ["SIRET", "numéro SIRET", "SIRET (14 caractères)", "numéro d'établissement",
+              "company registration number"]
   - name: siren
     value: "987654321"
-    description: "9-digit SIREN company identifier. NOT the 14-digit SIRET."
-    aliases: ["SIREN", "numéro SIREN", "SIREN (9 caractères)"]
+    description: "Numéro SIREN à 9 chiffres identifiant l'entreprise (identifiant unique attribué à chaque entreprise en France). À utiliser quand la question mentionne « SIREN » ou « 9 chiffres/caractères ». Ce n'est PAS le SIRET (14 chiffres) ni le numéro de TVA."
+    aliases: ["SIREN", "numéro SIREN", "SIREN (9 caractères)", "identifiant entreprise"]
+  - name: contact_email
+    value: "contact@ginesis-finance.com"
+    description: "Adresse email de contact de l'entreprise. C'est l'UNIQUE email de l'entreprise : l'utiliser comme email par défaut pour toute demande d'adresse email, y compris la demande d'email d'un service précis comme « l'email de la comptabilité fournisseurs » — l'entreprise n'ayant pas d'email dédié par service, ce contact général est l'email à fournir."
+    aliases: ["email", "e-mail", "adresse email", "adresse e-mail", "email de contact",
+              "courriel"]
+  - name: contact_phone
+    value: "+33000000000"
+    description: "Numéro de téléphone de contact de l'entreprise."
+    aliases: ["téléphone", "numéro de téléphone", "tél", "téléphone de contact", "phone"]
+  - name: address_street
+    value: "1 place Vendôme"
+    description: "Numéro et libellé de voie UNIQUEMENT (ex. « 1 place Vendôme ») de l'adresse postale. À utiliser seulement quand le formulaire sépare la voie, le code postal et la ville en champs distincts. Pour une adresse complète demandée en un seul champ, utiliser plutôt « billing_address »."
+    aliases: ["rue", "numéro et rue", "voie", "adresse (voie)", "street"]
+  - name: address_city
+    value: "Paris"
+    description: "Ville de l'adresse postale, en champ séparé. À utiliser quand la ville est demandée isolément."
+    aliases: ["ville", "commune", "city"]
+  - name: address_postal_code
+    value: "75001"
+    description: "Code postal de l'adresse postale, en champ séparé."
+    aliases: ["code postal", "CP", "zip", "postal code"]
+  - name: address_country
+    value: "France"
+    description: "Pays de l'adresse postale, en champ séparé."
+    aliases: ["pays", "country"]
+  - name: billing_address
+    value: "1 place Vendôme, 75001 Paris, France"
+    description: "Adresse POSTALE de facturation complète sur une seule ligne (voie, code postal, ville, pays), pour les questions demandant l'adresse de facturation en un seul champ texte. À ne pas confondre avec la « ligne d'adressage » / « adresse de facturation électronique » (qui est un identifiant d'acheminement des factures électroniques, et non une adresse postale)."
+    aliases: ["adresse de facturation", "adresse de facturation postale", "adresse postale",
+              "adresse complète", "adresse", "billing address"]
+  - name: iban
+    value: "FR7600000000000000000000000"
+    description: "IBAN du compte bancaire de l'entreprise (coordonnées bancaires pour les virements)."
+    aliases: ["IBAN", "RIB", "coordonnées bancaires", "compte bancaire", "bank account"]
   - name: accounting_contact
     value: "Jane Doe"
-    description: "Name of the person in our accounting team who is the contact for this supplier/relationship."
-    aliases: ["contact comptable", "contact dans vos équipes comptables", "accounting contact", "interlocuteur comptable", "en charge de la comptabilité"]
+    description: "NOM de la personne (interlocuteur) de notre équipe comptabilité fournisseurs en charge de cette relation. Répond aux questions sur le « contact » / « interlocuteur » de la comptabilité (un nom de personne). Si la question demande l'EMAIL de la comptabilité fournisseurs, utiliser « contact_email » (l'unique email de l'entreprise) ; ce champ-ci ne sert que lorsqu'un NOM de contact est demandé."
+    aliases: ["contact comptable", "contact en charge de la comptabilité",
+              "contact en charge de la comptabilité fournisseurs", "comptabilité fournisseurs",
+              "interlocuteur comptable"]
   - name: addressing_format
-    description: "The e-invoicing addressing FORMAT/scheme used to route invoices (e.g. SIREN, SIREN+SIRET, with routing code). The model maps this to the form's specific options."
     value: "SIREN + SIRET"
-    aliases: ["format d'adressage", "choix de format d'adressage", "addressing format"]
+    description: "FORMAT/schéma de la ligne d'adressage de facturation électronique (ex. SIREN seul, SIREN + SIRET, avec code de routage). À utiliser pour les questions À CHOIX sur le « format de ligne d'adressage » : sélectionner l'option du formulaire qui correspond à « SIREN + SIRET ». À ne pas confondre avec la valeur de la ligne d'adressage elle-même (« addressing_line »)."
+    aliases: ["format d'adressage", "format de ligne d'adressage",
+              "format choisi de ligne d'adressage", "choix de format d'adressage"]
   - name: addressing_line
-    description: "The e-invoicing ROUTING/addressing line used to deliver electronic invoices — the 'adresse de facturation électronique'. This is NOT the postal billing address; the word 'électronique' distinguishes it."
     value: "23 456 789 00012-PARIS"
-    aliases: ["ligne d'adressage", "adressage", "addressing line",
-              "adresse de facturation électronique", "adresse de facturation electronique",
-              "adresse électronique de facturation"]
+    description: "Ligne d'adressage de facturation ÉLECTRONIQUE : l'identifiant servant à acheminer les factures électroniques vers le bon circuit de traitement (la « adresse de facturation électronique »). Ce n'est NI une adresse email, NI une adresse postale — le mot « électronique » la distingue de l'adresse postale de facturation (« billing_address »)."
+    aliases: ["ligne d'adressage", "adresse de facturation électronique",
+              "adresse électronique de facturation", "identifiant de facturation électronique",
+              "adressage électronique"]
   - name: einvoicing_readiness
-    value: "en cours"
-    description: "Current readiness level for electronic invoicing rollout (e.g. not started / in progress / ready). Currently 'en cours' (in progress)."
-    aliases: ["niveau de préparation à la facturation électronique", "préparation facturation électronique", "e-invoicing readiness", "niveau de préparation"]
+    value: "En cours de préparation"
+    description: "Niveau de préparation de l'entreprise à la réforme de la facturation électronique. État actuel : préparation EN COURS. Pour une question à choix, sélectionner verbatim l'option qui exprime que la préparation est en cours (« En cours de préparation ») — et non « pas encore commencé » ni « prêt/opérationnel »."
+    aliases: ["niveau de préparation", "niveau de préparation à la facturation électronique",
+              "niveau de préparation à la réforme", "préparation facturation électronique",
+              "en cours de préparation"]
