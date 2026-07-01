@@ -29,6 +29,11 @@ class AppConfig(BaseModel):
     # gpt-5.4 defaults to 'none' (no reasoning) unless set explicitly; 'xhigh'
     # is the deepest level (supported on gpt-5.1-codex-max and later).
     reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] = "medium"
+    # Verifier (pass 2) may run on a different model / reasoning depth than the
+    # proposer (pass 1). Blank → reuse azure_openai_deployment; None → reuse
+    # reasoning_effort.
+    verifier_model_deployment: str = ""
+    verifier_reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
 
 
 class ProfileField(BaseModel):

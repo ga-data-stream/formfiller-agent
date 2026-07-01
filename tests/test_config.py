@@ -125,3 +125,27 @@ def test_appconfig_rejects_unknown_reasoning_effort():
     from formfiller.config import AppConfig
     with pytest.raises(ValidationError):
         AppConfig(excel_log_path="x.xlsx", reasoning_effort="turbo")
+
+
+def test_appconfig_verifier_model_defaults():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(excel_log_path="x.xlsx")
+    assert cfg.verifier_model_deployment == ""     # blank → reuse mapping model
+    assert cfg.verifier_reasoning_effort is None    # None → reuse reasoning_effort
+
+
+def test_appconfig_verifier_model_overrides():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(excel_log_path="x.xlsx",
+                    verifier_model_deployment="gpt-5.4",
+                    verifier_reasoning_effort="high")
+    assert cfg.verifier_model_deployment == "gpt-5.4"
+    assert cfg.verifier_reasoning_effort == "high"
+
+
+def test_appconfig_rejects_unknown_verifier_reasoning_effort():
+    import pytest
+    from pydantic import ValidationError
+    from formfiller.config import AppConfig
+    with pytest.raises(ValidationError):
+        AppConfig(excel_log_path="x.xlsx", verifier_reasoning_effort="turbo")
