@@ -50,7 +50,8 @@ def test_build_agent_run_writes_decisions_log(monkeypatch, tmp_path):
     import formfiller.cli as cli
 
     def _fake_map_and_verify(client, deployment, schema, profile, verify=True,
-                             max_output_tokens=16000, reasoning_effort="medium"):
+                             max_output_tokens=16000, reasoning_effort="medium",
+                             verifier_deployment="", verifier_reasoning_effort=None):
         from formfiller.models import (
             MappedAnswer, MappingResult, MappingOutcome, DecisionRecord,
         )
@@ -113,3 +114,43 @@ def test_build_agent_run_writes_decisions_log(monkeypatch, tmp_path):
     assert log.exists()
     text = log.read_text(encoding="utf-8")
     assert "SIREN" in text and "siren" in text
+
+
+def test_build_hooks_passes_verifier_config_to_map(monkeypatch, tmp_path):
+    # The deterministic hook's mapper must forward the verifier model + effort
+    # from config to map_and_verify.
+    import formfiller.cli as cli
+    from formfiller.config import AppConfig, ProfileField
+    from formfiller.models import MappingResult, MappingOutcome, FormSchema
+
+    captured = {}
+
+    def _capture(client, deployment, schema, profile, verify=True,
+                 max_output_tokens=16000, reasoning_effort="medium",
+                 verifier_deployment="", verifier_reasoning_effort=None):
+        captured.update(
+            deployment=deployment, reasoning_effort=reasoning_effort,
+            verifier_deployment=verifier_deployment,
+            verifier_reasoning_effort=verifier_reasoning_effort,
+        )
+        return MappingOutcome(result=MappingResult(answers=()), decisions=())
+
+    # Patch BEFORE _build_hooks runs (it does `from ... import map_and_verify` at call time).
+    monkeypatch.setattr("formfiller.field_mapper.map_and_verify", _capture)
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "k")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://r.services.ai.azure.com")
+
+    cfg = AppConfig(excel_log_path=str(tmp_path / "l.xlsx"),
+                    azure_openai_deployment="main-dep", reasoning_effort="low",
+                    verifier_model_deployment="verify-dep",
+                    verifier_reasoning_effort="high")
+    profile = (ProfileField(name="siren", value="123"),)
+    hooks = cli._build_hooks(cfg, profile)
+
+    schema = FormSchema(url="https://forms.office.com/r/x", title="T", questions=())
+    hooks.map_fields(schema)
+
+    assert captured["deployment"] == "main-dep"
+    assert captured["reasoning_effort"] == "low"
+    assert captured["verifier_deployment"] == "verify-dep"
+    assert captured["verifier_reasoning_effort"] == "high"
