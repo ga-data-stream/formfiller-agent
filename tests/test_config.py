@@ -149,3 +149,10 @@ def test_appconfig_rejects_unknown_verifier_reasoning_effort():
     from formfiller.config import AppConfig
     with pytest.raises(ValidationError):
         AppConfig(excel_log_path="x.xlsx", verifier_reasoning_effort="turbo")
+
+
+def test_appconfig_inbox_subfolder_default_and_override():
+    from formfiller.config import AppConfig
+    assert AppConfig(excel_log_path="x.xlsx").inbox_subfolder == ""
+    assert AppConfig(excel_log_path="x.xlsx",
+                     inbox_subfolder="ligne adressage").inbox_subfolder == "ligne adressage"

@@ -15,6 +15,7 @@ class AppConfig(BaseModel):
     excel_log_path: str
     review_queue_dir: str = "./review_queue"
     inbox_list_count: int = 25
+    inbox_subfolder: str = ""   # blank → Inbox root; else a direct subfolder of the Inbox to read
     azure_openai_deployment: str = "gpt-4o"
     azure_api_version: str = "2024-10-21"
     # --- agent fill strategy (additive; deterministic stays the default) ---
