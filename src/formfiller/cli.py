@@ -161,7 +161,7 @@ def main() -> int:
 
     from formfiller.email_source import OutlookEmailSource
 
-    source = OutlookEmailSource()
+    source = OutlookEmailSource(subfolder=config.inbox_subfolder)
     messages = source.list_recent(config.inbox_list_count)
     if not messages:
         print("Inbox is empty.")

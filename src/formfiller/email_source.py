@@ -32,6 +32,22 @@ class FakeEmailSource:
         return None
 
 
+def _resolve_subfolder(inbox, subfolder: str):
+    """Return the Inbox subfolder named `subfolder` (case-insensitive), or
+    `inbox` itself when `subfolder` is blank. Raises RuntimeError listing the
+    available subfolders when the name is not found."""
+    if not subfolder:
+        return inbox
+    for f in inbox.Folders:
+        if str(f.Name).casefold() == subfolder.casefold():
+            return f
+    available = [str(f.Name) for f in inbox.Folders]
+    raise RuntimeError(
+        f"Outlook subfolder {subfolder!r} not found under the Inbox. "
+        f"Available: {available}"
+    )
+
+
 class OutlookEmailSource:
     """Reads the live Outlook inbox via the desktop COM interface.
 
@@ -40,15 +56,15 @@ class OutlookEmailSource:
     imports cleanly on non-Windows CI.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, subfolder: str = "") -> None:
         import win32com.client  # lazy import; Windows + Outlook only
 
         outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-        # 6 == olFolderInbox
-        self._inbox = outlook.GetDefaultFolder(6)
+        inbox = outlook.GetDefaultFolder(6)  # 6 == olFolderInbox
+        self._folder = _resolve_subfolder(inbox, subfolder)
 
     def list_recent(self, count: int) -> list[EmailMessage]:
-        items = self._inbox.Items
+        items = self._folder.Items
         items.Sort("[ReceivedTime]", True)  # newest first
         out: list[EmailMessage] = []
         # GetFirst/GetNext is the robust idiom for a sorted live collection;
@@ -66,7 +82,7 @@ class OutlookEmailSource:
 
     def get(self, entry_id: str) -> Optional[EmailMessage]:
         try:
-            item = self._inbox.Session.GetItemFromID(entry_id)
+            item = self._folder.Session.GetItemFromID(entry_id)
         except Exception:
             return None
         return self._to_message(item)
