@@ -282,3 +282,51 @@ def test_verify_rejection_keeps_pass1_value_and_honors_verifier_status():
     ans = out.result.by_id("q1")
     assert ans.value == "Ginesis Finance SAS"  # pass-1 profile value kept (not the hallucination)
     assert ans.status == "ambiguous"           # verifier status honored -> routes to review
+
+
+def test_map_and_verify_routes_verifier_model_and_effort_to_pass2():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Ginesis Finance SAS", confidence=0.95,
+                          status="matched", rationale="ok"),
+    ])
+    client = _SeqClient([propose, verify])
+    map_and_verify(client, "propose-dep", _schema(), _profile(),
+                   reasoning_effort="low",
+                   verifier_deployment="verify-dep",
+                   verifier_reasoning_effort="high")
+    calls = client.responses.calls
+    assert len(calls) == 2
+    # pass 1 keeps the proposer model + effort
+    assert calls[0]["model"] == "propose-dep"
+    assert calls[0]["reasoning"] == {"effort": "low"}
+    # pass 2 uses the verifier model + effort
+    assert calls[1]["model"] == "verify-dep"
+    assert calls[1]["reasoning"] == {"effort": "high"}
+
+
+def test_map_and_verify_verifier_falls_back_to_proposer():
+    from formfiller.field_mapper import LLMVerification, LLMVerifiedAnswer
+    propose = LLMMapping(answers=[
+        LLMMappedAnswer(question_id="q1", profile_field="company_legal_name",
+                        value="Ginesis Finance SAS", confidence=0.9,
+                        status="matched", rationale="ok"),
+    ])
+    verify = LLMVerification(answers=[
+        LLMVerifiedAnswer(question_id="q1", profile_field="company_legal_name",
+                          value="Ginesis Finance SAS", confidence=0.95,
+                          status="matched", rationale="ok"),
+    ])
+    client = _SeqClient([propose, verify])
+    # verifier_deployment="" and verifier_reasoning_effort=None → reuse pass 1
+    map_and_verify(client, "propose-dep", _schema(), _profile(),
+                   reasoning_effort="low")
+    calls = client.responses.calls
+    assert calls[1]["model"] == "propose-dep"
+    assert calls[1]["reasoning"] == {"effort": "low"}

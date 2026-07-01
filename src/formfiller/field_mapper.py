@@ -182,7 +182,9 @@ def _outcome_from_single(schema: FormSchema, proposed: MappingResult,
 def map_and_verify(client, deployment: str, schema: FormSchema,
                    profile: Sequence[ProfileField], verify: bool = True,
                    max_output_tokens: int = 16000,
-                   reasoning_effort: str = "medium") -> "MappingOutcome":
+                   reasoning_effort: str = "medium",
+                   verifier_deployment: str = "",
+                   verifier_reasoning_effort: str | None = None) -> "MappingOutcome":
     """Two-pass mapping. Pass 1 proposes (with rationale); pass 2 verifies and
     sets the final status. Returns a MappingOutcome (result for the gate +
     decisions for the reasoning log). Falls back to pass-1 if verify fails."""
@@ -191,9 +193,11 @@ def map_and_verify(client, deployment: str, schema: FormSchema,
                           reasoning_effort=reasoning_effort)
     if not verify:
         return _outcome_from_single(schema, proposed)
+    v_dep = verifier_deployment or deployment
+    v_effort = verifier_reasoning_effort or reasoning_effort
     try:
-        verification = _verify(client, deployment, schema, profile, proposed,
-                               max_output_tokens, reasoning_effort=reasoning_effort)
+        verification = _verify(client, v_dep, schema, profile, proposed,
+                               max_output_tokens, reasoning_effort=v_effort)
     except Exception as exc:  # noqa: BLE001 — verify is best-effort
         logger.warning("verify pass failed (%s); using pass-1 mapping.", exc)
         return _outcome_from_single(schema, proposed, verify_note="(verification unavailable)")
