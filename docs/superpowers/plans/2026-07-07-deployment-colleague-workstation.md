@@ -12,6 +12,8 @@
 
 **Dépendance :** le script console `formfiller-batch` doit exister → **Plan A terminé** (`2026-07-07-batch-triage.md`).
 
+> **Ajustement de périmètre (2026-07-08) :** la **tâche planifiée est différée** à la demande de l'utilisateur. On implémente d'abord le lancement **manuel** (raccourci bureau). Concrètement : Task 1 ne produit **pas** `run-batch-scheduled.cmd` ; Task 3 ne fait **que** le raccourci bureau (l'enregistrement `Register-ScheduledTask` est reporté) ; le runbook (Task 4) marque la partie planifiée comme « à activer plus tard ». Rien d'autre ne change.
+
 ## Global Constraints
 
 - Runtime **natif Windows** : Outlook desktop installé + session interactive ouverte ; le `.devcontainer/` (Linux) **ne peut pas** faire tourner la prod (pas de COM Outlook).
