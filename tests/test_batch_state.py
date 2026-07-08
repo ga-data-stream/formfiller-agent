@@ -45,3 +45,11 @@ def test_release_lock_removes_file_and_tolerates_missing(tmp_path):
     release_lock(p)
     assert not p.exists()
     release_lock(p)   # ne lève pas
+
+
+def test_acquire_lock_does_not_clobber_fresh_lock(tmp_path):
+    p = tmp_path / ".lock"
+    assert acquire_lock(p, stale_seconds=3600) is True
+    content_before = p.read_text(encoding="utf-8")
+    assert acquire_lock(p, stale_seconds=3600) is False
+    assert p.read_text(encoding="utf-8") == content_before

@@ -26,15 +26,32 @@ def save_ledger(path: str | Path, ids: set[str]) -> None:
 
 
 def acquire_lock(path: str | Path, stale_seconds: int) -> bool:
-    """Prend le verrou. Retourne False si un verrou FRAIS existe déjà. Un verrou
-    plus vieux que stale_seconds est considéré périmé et repris."""
+    """Prend le verrou de façon atomique (os.O_CREAT | os.O_EXCL). Retourne False si
+    un verrou FRAIS existe déjà. Un verrou plus vieux que stale_seconds est considéré
+    périmé et repris — sauf si un autre processus le reprend entre-temps, auquel cas
+    on renonce (False) plutôt que d'écraser son verrou."""
     p = Path(path)
-    if p.exists():
-        age = time.time() - p.stat().st_mtime
+    p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(p), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            age = time.time() - p.stat().st_mtime
+        except FileNotFoundError:
+            return False   # disparu entre-temps ; le prochain run réessaiera
         if age < stale_seconds:
             return False
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(str(os.getpid()), encoding="utf-8")
+        # périmé -> on reprend
+        try:
+            p.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            fd = os.open(str(p), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            return False   # un autre processus l'a repris entre-temps
+    with os.fdopen(fd, "w") as fh:
+        fh.write(str(os.getpid()))
     return True
 
 
