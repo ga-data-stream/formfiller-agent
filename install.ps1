@@ -7,6 +7,7 @@ Set-Location -Path $PSScriptRoot
 $py = (Get-Command python -ErrorAction SilentlyContinue)
 if (-not $py) { throw "Python introuvable. Installez Python >= 3.11 (winget install Python.Python.3.11) puis relancez." }
 $ver = (python -c "import sys; print('%d.%d' % sys.version_info[:2])")
+if ([string]::IsNullOrWhiteSpace($ver)) { throw "Python introuvable ou non fonctionnel (alias Windows ?). Installez Python >= 3.11 puis relancez." }
 if ([version]$ver -lt [version]"3.11") { throw "Python $ver detecte ; 3.11+ requis." }
 Write-Host "Python $ver OK."
 
@@ -25,15 +26,24 @@ if (Test-Path ".env") {
     Write-Host ".env existe deja — conserve (aucun secret affiche)."
 } else {
     $key = Read-Host "AZURE_OPENAI_API_KEY" -AsSecureString
-    $endpoint = Read-Host "AZURE_OPENAI_ENDPOINT"
-    $keyPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($key))
-    Set-Content -Path ".env" -Encoding UTF8 -Value @(
-        "AZURE_OPENAI_API_KEY=$keyPlain",
-        "AZURE_OPENAI_ENDPOINT=$endpoint"
-    )
-    $keyPlain = $null
-    Write-Host ".env cree (valeurs non affichees)."
+    $endpoint = Read-Host "AZURE_OPENAI_ENDPOINT" -AsSecureString
+    $keyBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($key)
+    $endBstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($endpoint)
+    try {
+        $keyPlain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($keyBstr)
+        $endPlain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($endBstr)
+        # UTF-8 SANS BOM : python-dotenv ne retire pas le BOM et lirait sinon la
+        # 1re cle comme "﻿AZURE_OPENAI_API_KEY" -> KeyError au 1er run.
+        [System.IO.File]::WriteAllLines(
+            (Join-Path $PSScriptRoot ".env"),
+            [string[]]@("AZURE_OPENAI_API_KEY=$keyPlain", "AZURE_OPENAI_ENDPOINT=$endPlain"),
+            (New-Object System.Text.UTF8Encoding($false)))
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($keyBstr)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($endBstr)
+        $keyPlain = $null; $endPlain = $null
+    }
+    Write-Host ".env cree (valeurs non affichees, sans BOM)."
 }
 
 # 6. config.yaml de prod. config.yaml est suivi par git → au clone, le poste a la
@@ -41,7 +51,7 @@ if (Test-Path ".env") {
 #    existe deja, on le SAUVEGARDE avant (pas d'ecrasement silencieux).
 if (Test-Path "config.yaml") {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    Copy-Item "config.yaml" "config.yaml.bak-$stamp"
+    Copy-Item "config.yaml" "config.yaml.bak-$stamp" -Force
     Write-Host "config.yaml existant sauvegarde en config.yaml.bak-$stamp."
 }
 Copy-Item "config.prod.example.yaml" "config.yaml" -Force

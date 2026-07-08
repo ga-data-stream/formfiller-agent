@@ -17,3 +17,6 @@ dry_run_preview/
 processed_ids.json
 .batch.lock
 logs/
+
+# timestamped config.yaml backups created by install.ps1 on the target machine
+config.yaml.bak-*
