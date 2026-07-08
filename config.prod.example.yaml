@@ -1,0 +1,20 @@
+# Config de PRODUCTION (poste du collègue). Copiée en config.yaml par install.ps1.
+# Ajustable au besoin. NE PAS committer le config.yaml généré sur le poste.
+confidence_threshold: 0.8
+dry_run: false                       # prod : auto-soumission au-dessus du seuil
+fill_strategy: "agent"
+excel_log_path: "./form_log.xlsx"
+review_queue_dir: "./review_queue"
+inbox_list_count: 140
+inbox_subfolder: "ligne adressage"   # dossier dédié dans la boîte PRINCIPALE du collègue
+processed_subfolder: "Traité"
+review_subfolder: "Revue humaine"
+batch_lock_path: "./.batch.lock"
+lock_stale_seconds: 3600
+processed_ledger_path: "./processed_ids.json"
+run_log_dir: "./logs"
+azure_openai_deployment: "gpt-5.4-nano"
+azure_api_version: "preview"
+reasoning_effort: "low"
+verifier_model_deployment: "gpt-5.4-mini"
+verifier_reasoning_effort: "medium"
