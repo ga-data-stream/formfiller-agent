@@ -53,3 +53,18 @@ def test_acquire_lock_does_not_clobber_fresh_lock(tmp_path):
     content_before = p.read_text(encoding="utf-8")
     assert acquire_lock(p, stale_seconds=3600) is False
     assert p.read_text(encoding="utf-8") == content_before
+
+
+def test_acquire_lock_returns_false_if_stale_unlink_blocked(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    p = tmp_path / ".lock"
+    p.write_text("999", encoding="utf-8")
+    old = time.time() - 10_000
+    os.utime(p, (old, old))   # verrou périmé
+
+    def boom(self):
+        raise PermissionError("in use")
+
+    monkeypatch.setattr(Path, "unlink", boom)
+    assert acquire_lock(p, stale_seconds=3600) is False   # un autre process le détient

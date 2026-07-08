@@ -45,7 +45,9 @@ def acquire_lock(path: str | Path, stale_seconds: int) -> bool:
         try:
             p.unlink()
         except FileNotFoundError:
-            pass
+            pass                # déjà supprimé → on peut recréer
+        except OSError:
+            return False        # un autre process le détient (ex. Windows WinError 32) → on renonce
         try:
             fd = os.open(str(p), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
