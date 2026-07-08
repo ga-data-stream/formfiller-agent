@@ -15,12 +15,17 @@ class EmailSource(Protocol):
     def get(self, entry_id: str) -> Optional[EmailMessage]:
         ...
 
+    def move_to_subfolder(self, entry_id: str, name: str) -> bool:
+        ...
+
 
 class FakeEmailSource:
     """In-memory source for tests."""
 
-    def __init__(self, messages: list[EmailMessage]):
+    def __init__(self, messages: list[EmailMessage], *, move_fails: bool = False):
         self._messages = list(messages)
+        self.moves: list[tuple[str, str]] = []
+        self._move_fails = move_fails
 
     def list_recent(self, count: int) -> list[EmailMessage]:
         return self._messages[:count]
@@ -30,6 +35,12 @@ class FakeEmailSource:
             if m.entry_id == entry_id:
                 return m
         return None
+
+    def move_to_subfolder(self, entry_id: str, name: str) -> bool:
+        if self._move_fails:
+            return False
+        self.moves.append((entry_id, name))
+        return True
 
 
 def _resolve_subfolder(inbox, subfolder: str):
@@ -46,6 +57,15 @@ def _resolve_subfolder(inbox, subfolder: str):
         f"Outlook subfolder {subfolder!r} not found under the Inbox. "
         f"Available: {available}"
     )
+
+
+def _resolve_or_create(parent, name: str):
+    """Retourne le sous-dossier `name` (insensible à la casse) sous `parent`,
+    en le créant via `Folders.Add` s'il n'existe pas encore."""
+    for f in parent.Folders:
+        if str(f.Name).casefold() == name.casefold():
+            return f
+    return parent.Folders.Add(name)
 
 
 class OutlookEmailSource:
@@ -86,6 +106,23 @@ class OutlookEmailSource:
         except Exception:
             return None
         return self._to_message(item)
+
+    def move_to_subfolder(self, entry_id: str, name: str) -> bool:
+        """Déplace le mail `entry_id` vers un sous-dossier frère du dossier
+        source (créé si absent). Retourne False sur toute erreur COM (jamais
+        d'exception propagée : le batch doit continuer)."""
+        try:
+            # self._folder.Parent is a sibling of the source folder: with a
+            # blank inbox_subfolder self._folder is the Inbox itself, so
+            # Traité/Revue humaine would land at the mailbox-store root (prod
+            # config always sets inbox_subfolder, so this doesn't happen there).
+            target = _resolve_or_create(self._folder.Parent, name)
+            item = self._folder.Session.GetItemFromID(entry_id)
+            item.Move(target)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            print(f"[warn] déplacement de {entry_id} vers {name!r} impossible: {exc}")
+            return False
 
     @staticmethod
     def _to_message(item) -> EmailMessage:

@@ -154,3 +154,10 @@ def test_build_hooks_passes_verifier_config_to_map(monkeypatch, tmp_path):
     assert captured["reasoning_effort"] == "low"
     assert captured["verifier_deployment"] == "verify-dep"
     assert captured["verifier_reasoning_effort"] == "high"
+
+
+def test_build_agent_run_accepts_confirm_param():
+    import inspect
+    from formfiller.cli import build_agent_run
+    params = inspect.signature(build_agent_run).parameters
+    assert "confirm" in params   # paramétrable pour le mode non-interactif

@@ -22,6 +22,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 formfiller = "formfiller.cli:main"
+formfiller-batch = "formfiller.batch:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
