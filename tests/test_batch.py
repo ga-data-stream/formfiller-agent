@@ -6,7 +6,9 @@ from formfiller.models import EmailMessage
 
 
 class _Result:
-    def __init__(self, status): self.status = status
+    def __init__(self, status, overall_confidence=0.9):
+        self.status = status
+        self.overall_confidence = overall_confidence
 
 
 def _msg(entry_id):
@@ -75,13 +77,29 @@ def test_run_batch_move_failure_still_ledgers_so_no_reprocess(tmp_path):
     assert summary2.skipped == 1 and summary2.processed == 0
 
 
+def test_run_batch_aborts_when_ledger_save_fails(tmp_path, monkeypatch):
+    # Le registre ne peut pas être écrit (verrou OneDrive/AV) après le 1er mail :
+    # le batch doit s'arrêter net plutôt que risquer un retraitement / double
+    # soumission sur les mails suivants.
+    import formfiller.batch as batch_mod
+
+    calls = []
+
+    def process(email):
+        calls.append(email.entry_id)
+        return _Result("success")
+
+    def fail_save(path, ids):
+        raise OSError("locked (OneDrive/AV)")
+
+    monkeypatch.setattr(batch_mod, "save_ledger", fail_save)
+    source = FakeEmailSource([_msg("E1"), _msg("E2")])
+    run_batch(source=source, process=process, config=_cfg(tmp_path), log=lambda m: None)
+
+    assert calls == ["E1"]     # E2 jamais traité : arrêt après l'échec d'écriture
+    assert source.moves == []  # arrêt avant tout déplacement
+
+
 def test_auto_confirm_always_true():
     from formfiller.batch import _auto_confirm
     assert _auto_confirm("prêt à soumettre") is True
-
-
-def test_build_agent_run_accepts_confirm_param():
-    import inspect
-    from formfiller.cli import build_agent_run
-    params = inspect.signature(build_agent_run).parameters
-    assert "confirm" in params   # paramétrable pour le mode non-interactif

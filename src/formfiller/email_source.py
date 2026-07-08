@@ -112,6 +112,10 @@ class OutlookEmailSource:
         source (créé si absent). Retourne False sur toute erreur COM (jamais
         d'exception propagée : le batch doit continuer)."""
         try:
+            # self._folder.Parent is a sibling of the source folder: with a
+            # blank inbox_subfolder self._folder is the Inbox itself, so
+            # Traité/Revue humaine would land at the mailbox-store root (prod
+            # config always sets inbox_subfolder, so this doesn't happen there).
             target = _resolve_or_create(self._folder.Parent, name)
             item = self._folder.Session.GetItemFromID(entry_id)
             item.Move(target)

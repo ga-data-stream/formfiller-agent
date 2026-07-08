@@ -37,15 +37,27 @@ def run_batch(*, source: EmailSource,
             continue
 
         try:
-            status = process(email).status
+            result = process(email)
+            status = result.status
+            confidence = result.overall_confidence
         except Exception as exc:  # noqa: BLE001 — isoler un mail défaillant
             log(f"[error] {email.entry_id}: {exc}")
             status = "fail"
+            confidence = 0.0
 
         # Écrire au registre AVANT le déplacement : même si le move échoue, le
         # mail ne sera pas rejoué (donc pas de formulaire soumis deux fois).
+        # Conséquence assumée : un mail "manual"/"fail" est ledgeré de façon
+        # permanente — même si un humain le remet dans la boîte de réception,
+        # un run ultérieur ne le retraitera pas (le déplacement de dossier ET
+        # le registre sont tous les deux structurants, pas juste indicatifs).
         ledger.add(email.entry_id)
-        save_ledger(config.processed_ledger_path, ledger)
+        try:
+            save_ledger(config.processed_ledger_path, ledger)
+        except OSError as exc:               # can't guarantee idempotency → stop now
+            log(f"[FATAL] registre non enregistré pour {email.entry_id}: {exc}. "
+                f"Arrêt du batch pour éviter tout retraitement / double-soumission.")
+            break
 
         moved = triage.route(source, email.entry_id, status, config)
         target = triage.target_subfolder(status, config)
@@ -60,7 +72,7 @@ def run_batch(*, source: EmailSource,
             not_moved += 1
 
         suffix = "" if moved else " (NON DÉPLACÉ)"
-        log(f"[{status}] {email.entry_id} → {target}{suffix}")
+        log(f"[{status}] conf={confidence:.2f} {email.entry_id} → {target}{suffix}")
 
     summary = BatchSummary(processed=processed, review=review, failed=failed,
                            not_moved=not_moved, skipped=skipped)
@@ -84,8 +96,11 @@ def _make_logger(run_log_dir: str) -> Callable[[str], None]:
 
     def log(msg: str) -> None:
         print(msg)
-        with logfile.open("a", encoding="utf-8") as fh:
-            fh.write(msg + "\n")
+        try:
+            with logfile.open("a", encoding="utf-8") as fh:
+                fh.write(msg + "\n")
+        except OSError:
+            pass   # stdout already has it; a locked log file must not abort the batch
 
     return log
 

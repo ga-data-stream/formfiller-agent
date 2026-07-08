@@ -12,3 +12,8 @@ decisions/
 traces/
 dry_run_preview/
 .superpowers/
+
+# runtime artifacts produced by the batch (Plan A - batch + triage)
+processed_ids.json
+.batch.lock
+logs/

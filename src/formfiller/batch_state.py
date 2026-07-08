@@ -19,10 +19,25 @@ def load_ledger(path: str | Path) -> set[str]:
         return set()
 
 
-def save_ledger(path: str | Path, ids: set[str]) -> None:
+def save_ledger(path: str | Path, ids: set[str], retries: int = 3, delay: float = 0.5) -> None:
+    """Écrit le registre anti-double-soumission. Résilient à un verrou passager
+    (OneDrive/AV sur le fichier synchronisé) : retente brièvement, puis lève
+    l'erreur si ça persiste — l'appelant doit alors arrêter le batch plutôt que
+    de continuer sans garantie d'idempotence (mirrors result_logger.append_result)."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(sorted(ids), ensure_ascii=False), encoding="utf-8")
+    payload = json.dumps(sorted(ids), ensure_ascii=False)
+    last_exc: OSError | None = None
+    for attempt in range(retries):
+        try:
+            p.write_text(payload, encoding="utf-8")
+            return
+        except OSError as exc:               # locked by sync/AV/editor — retry briefly
+            last_exc = exc
+            if attempt < retries - 1 and delay:
+                time.sleep(delay)
+    assert last_exc is not None
+    raise last_exc
 
 
 def acquire_lock(path: str | Path, stale_seconds: int) -> bool:
