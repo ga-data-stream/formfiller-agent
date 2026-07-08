@@ -156,3 +156,27 @@ def test_appconfig_inbox_subfolder_default_and_override():
     assert AppConfig(excel_log_path="x.xlsx").inbox_subfolder == ""
     assert AppConfig(excel_log_path="x.xlsx",
                      inbox_subfolder="ligne adressage").inbox_subfolder == "ligne adressage"
+
+
+def test_appconfig_batch_defaults():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(excel_log_path="x.xlsx")
+    assert cfg.processed_subfolder == "Traité"
+    assert cfg.review_subfolder == "Revue humaine"
+    assert cfg.batch_lock_path == "./.batch.lock"
+    assert cfg.lock_stale_seconds == 3600
+    assert cfg.processed_ledger_path == "./processed_ids.json"
+    assert cfg.run_log_dir == "./logs"
+
+
+def test_appconfig_batch_overrides():
+    from formfiller.config import AppConfig
+    cfg = AppConfig(
+        excel_log_path="x.xlsx",
+        processed_subfolder="Fait", review_subfolder="À revoir",
+        batch_lock_path="./lock", lock_stale_seconds=60,
+        processed_ledger_path="./ids.json", run_log_dir="./l",
+    )
+    assert cfg.processed_subfolder == "Fait"
+    assert cfg.review_subfolder == "À revoir"
+    assert cfg.lock_stale_seconds == 60
