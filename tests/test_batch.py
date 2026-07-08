@@ -73,3 +73,15 @@ def test_run_batch_move_failure_still_ledgers_so_no_reprocess(tmp_path):
     source2 = FakeEmailSource([_msg("E1")])
     summary2 = run_batch(source=source2, process=_process_from({"E1": "success"}), config=cfg, log=lambda m: None)
     assert summary2.skipped == 1 and summary2.processed == 0
+
+
+def test_auto_confirm_always_true():
+    from formfiller.batch import _auto_confirm
+    assert _auto_confirm("prêt à soumettre") is True
+
+
+def test_build_agent_run_accepts_confirm_param():
+    import inspect
+    from formfiller.cli import build_agent_run
+    params = inspect.signature(build_agent_run).parameters
+    assert "confirm" in params   # paramétrable pour le mode non-interactif

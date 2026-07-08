@@ -67,11 +67,16 @@ def choose_pipeline(fill_strategy: str) -> str:
     return "agent" if fill_strategy == "agent" else "deterministic"
 
 
-def build_agent_run(*, client, config, profile):
+def build_agent_run(*, client, config, profile, confirm=None):
     """Build the AgentDeps.run callable: assemble the executor + LLM and run the loop.
+
+    `confirm` gates irreversible submits; defaults to the interactive terminal
+    prompt (batch mode injects auto-True).
 
     Returns a function run(page, url, config, profile, trace) -> LoopOutcome.
     """
+    if confirm is None:
+        confirm = _terminal_confirm
     from formfiller.agent.loop import run_loop
     from formfiller.agent.system_prompt import SYSTEM_PROMPT
     from formfiller.agent.tools import TOOL_SCHEMAS, ToolExecutor
@@ -103,7 +108,7 @@ def build_agent_run(*, client, config, profile):
             schema_reader=lambda: schema_from_page(page, url),
             mapper=mapper,
             threshold=config.confidence_threshold, dry_run=config.dry_run,
-            confirm=_terminal_confirm,
+            confirm=confirm,
         )
         llm = OpenAIResponsesAgentLLM(client, deployment=deployment, instructions=SYSTEM_PROMPT,
                                       reasoning_effort=config.reasoning_effort)
@@ -127,7 +132,7 @@ def _terminal_confirm(summary: str) -> bool:
     return answer.strip().lower() in ("y", "yes")
 
 
-def _build_agent_deps(config, profile):
+def _build_agent_deps(config, profile, confirm=None):
     """Production AgentDeps: real Playwright page + Azure client."""
     import os
     from openai import OpenAI
@@ -137,7 +142,7 @@ def _build_agent_deps(config, profile):
     client = OpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
                     base_url=azure_v1_base_url(os.environ["AZURE_OPENAI_ENDPOINT"]),
                     default_query={"api-version": config.azure_api_version})
-    run = build_agent_run(client=client, config=config, profile=profile)
+    run = build_agent_run(client=client, config=config, profile=profile, confirm=confirm)
 
     from contextlib import contextmanager
 
